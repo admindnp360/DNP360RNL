@@ -3,7 +3,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  Alert, Modal, Pressable, ScrollView, StyleSheet,
+  Switch, Text, TextInput, TouchableOpacity, View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppData } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,25 +19,40 @@ const ROLE_LABELS: Record<string, { en: string; hi: string }> = {
   admin:      { en: 'System Administrator', hi: 'सिस्टम प्रशासक' },
 };
 
-const ROLE_GRADIENTS: Record<string, readonly [string, string]> = {
-  citizen:    ['#0D2A6E', '#1264E8'],
-  safaikarmi: ['#003D1C', '#007F42'],
-  official:   ['#5A2E00', '#C45C00'],
-  admin:      ['#0A1F5A', '#1A3FA8'],
-};
-
-const ROLE_COLORS: Record<string, string> = {
-  citizen: '#1264E8', safaikarmi: '#007F42', official: '#C45C00', admin: '#1A3FA8',
-};
-const ROLE_BG: Record<string, string> = {
-  citizen: '#DCEEFF', safaikarmi: '#C8FADC', official: '#FFE2C0', admin: '#D5E1FF',
+const ROLE_CONFIG: Record<string, {
+  hero: readonly [string, string, string];
+  grad: readonly [string, string];
+  accent: string;
+  accentLight: string;
+  iconGrads: readonly [string, string][];
+}> = {
+  citizen: {
+    hero: ['#050C1A', '#0D2260', '#1652CC'],
+    grad: ['#0D2260', '#1652CC'],
+    accent: '#1264E8',
+    accentLight: '#DCEEFF',
+    iconGrads: [['#1264E8', '#0EA5E9'], ['#6366F1', '#8B5CF6'], ['#10B981', '#059669']],
+  },
+  safaikarmi: {
+    hero: ['#021208', '#013D1C', '#006A35'],
+    grad: ['#013D1C', '#006A35'],
+    accent: '#007F42',
+    accentLight: '#D1FAE5',
+    iconGrads: [['#10B981', '#059669'], ['#0EA5E9', '#2563EB'], ['#6366F1', '#7C3AED']],
+  },
+  official: {
+    hero: ['#120800', '#3D1800', '#8B3E00'],
+    grad: ['#3D1800', '#8B3E00'],
+    accent: '#C45C00',
+    accentLight: '#FFE2C0',
+    iconGrads: [['#F59E0B', '#EF4444'], ['#EC4899', '#DB2777'], ['#6366F1', '#8B5CF6']],
+  },
 };
 
 export default function ProfileScreen() {
   const { user, logout, updateProfile } = useAuth();
   const {
-    supportDetails, updateSupportDetails,
-    complaints, users, notices,
+    supportDetails, complaints, users, notices,
     getComplaintsByUser, getVisitsByWorker, getAttendanceByWorker,
   } = useAppData();
   const colors = useColors();
@@ -42,18 +60,10 @@ export default function ProfileScreen() {
   const [lang, setLang] = useState<'en' | 'hi'>('en');
   const [notifEnabled, setNotifEnabled] = useState(true);
   const [showLangModal, setShowLangModal] = useState(false);
-  const [showSupportModal, setShowSupportModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-
   const [editName, setEditName] = useState('');
   const [editMobile, setEditMobile] = useState('');
   const [editAddress, setEditAddress] = useState('');
-  const [savingProfile, setSavingProfile] = useState(false);
-
-  const [editPhone, setEditPhone] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [editSupportAddr, setEditSupportAddr] = useState('');
-  const [editHours, setEditHours] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -62,20 +72,17 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
-  const roleColor   = ROLE_COLORS[user.role]   ?? '#1264E8';
-  const roleBg      = ROLE_BG[user.role]        ?? '#DCEEFF';
-  const roleGrad    = ROLE_GRADIENTS[user.role] ?? ['#0D2A6E', '#1264E8'];
-  const roleLabelObj = ROLE_LABELS[user.role]   ?? { en: user.role, hi: user.role };
-  const roleLabel   = lang === 'hi' ? roleLabelObj.hi : roleLabelObj.en;
-  const isAdmin     = user.role === 'admin';
+  const cfg = ROLE_CONFIG[user.role] ?? ROLE_CONFIG.citizen;
+  const roleLabelObj = ROLE_LABELS[user.role] ?? { en: user.role, hi: user.role };
+  const roleLabel = lang === 'hi' ? roleLabelObj.hi : roleLabelObj.en;
 
   const statsRow = (() => {
     if (user.role === 'citizen') {
       const mine = getComplaintsByUser(user.id);
       return [
-        { label: lang === 'hi' ? 'शिकायतें' : 'Complaints', value: mine.length,                                        icon: 'clipboard' },
-        { label: lang === 'hi' ? 'सक्रिय'   : 'Active',      value: mine.filter(c => c.status !== 'resolved').length,  icon: 'loader' },
-        { label: lang === 'hi' ? 'हल'        : 'Resolved',    value: mine.filter(c => c.status === 'resolved').length,  icon: 'check-circle' },
+        { label: lang === 'hi' ? 'शिकायतें' : 'Total',    value: mine.length,                                        icon: 'clipboard', gi: 0 },
+        { label: lang === 'hi' ? 'सक्रिय'   : 'Active',   value: mine.filter(c => c.status !== 'resolved').length,  icon: 'loader',    gi: 1 },
+        { label: lang === 'hi' ? 'हल'        : 'Resolved', value: mine.filter(c => c.status === 'resolved').length,  icon: 'check-circle', gi: 2 },
       ];
     }
     if (user.role === 'safaikarmi') {
@@ -83,56 +90,37 @@ export default function ProfileScreen() {
       const visits = getVisitsByWorker(user.id);
       const att = getAttendanceByWorker(user.id);
       return [
-        { label: lang === 'hi' ? 'आज के दौरे' : "Today",       value: visits.filter(v => v.visitDate === todayStr).length,              icon: 'home' },
-        { label: lang === 'hi' ? 'इस माह'     : 'This Month',  value: att.filter(a => a.date.startsWith(todayStr.slice(0, 7))).length,  icon: 'calendar' },
-        { label: lang === 'hi' ? 'कुल दौरे'   : 'Total Visits', value: visits.length,                                                    icon: 'map' },
+        { label: lang === 'hi' ? 'आज' : "Today",      value: visits.filter(v => v.visitDate === todayStr).length,             icon: 'home',     gi: 0 },
+        { label: lang === 'hi' ? 'माह' : 'Month',     value: att.filter(a => a.date.startsWith(todayStr.slice(0, 7))).length, icon: 'calendar', gi: 1 },
+        { label: lang === 'hi' ? 'कुल' : 'Total',     value: visits.length,                                                    icon: 'map',      gi: 2 },
       ];
     }
     if (user.role === 'official') {
       return [
-        { label: lang === 'hi' ? 'शिकायतें' : 'Complaints', value: complaints.length,                                       icon: 'clipboard' },
-        { label: lang === 'hi' ? 'लंबित'    : 'Pending',     value: complaints.filter(c => c.status === 'submitted').length, icon: 'clock' },
-        { label: lang === 'hi' ? 'कर्मी'    : 'Workers',     value: users.filter(u => u.role === 'safaikarmi').length,       icon: 'users' },
+        { label: lang === 'hi' ? 'शिकायतें' : 'Complaints', value: complaints.length,                                       icon: 'clipboard', gi: 0 },
+        { label: lang === 'hi' ? 'लंबित'    : 'Pending',    value: complaints.filter(c => c.status === 'submitted').length, icon: 'clock',     gi: 1 },
+        { label: lang === 'hi' ? 'कर्मी'    : 'Workers',    value: users.filter(u => u.role === 'safaikarmi').length,       icon: 'users',     gi: 2 },
       ];
     }
     return [
-      { label: lang === 'hi' ? 'उपयोगकर्ता' : 'Users',      value: users.length,                               icon: 'users' },
-      { label: lang === 'hi' ? 'शिकायतें'   : 'Complaints', value: complaints.length,                          icon: 'clipboard' },
-      { label: lang === 'hi' ? 'नोटिस'      : 'Notices',    value: notices.filter(n => n.isActive).length,     icon: 'volume-2' },
+      { label: 'Users',      value: users.length,                           icon: 'users',    gi: 0 },
+      { label: 'Complaints', value: complaints.length,                       icon: 'clipboard',gi: 1 },
+      { label: 'Notices',    value: notices.filter(n => n.isActive).length, icon: 'volume-2', gi: 2 },
     ];
   })();
 
   function openEdit() {
-    setEditName(user.name);
-    setEditMobile(user.mobile ?? '');
-    setEditAddress(user.address ?? '');
+    setEditName(user.name); setEditMobile(user.mobile ?? ''); setEditAddress(user.address ?? '');
     setShowEditModal(true);
   }
 
-  async function handleSaveProfile() {
+  async function handleSave() {
     if (!editName.trim()) { Alert.alert('Missing', 'Name cannot be empty.'); return; }
-    setSavingProfile(true);
+    setSaving(true);
     try {
       await updateProfile({ name: editName.trim(), mobile: editMobile.trim() || undefined, address: editAddress.trim() || undefined });
       setShowEditModal(false);
-      Alert.alert('✓ Updated', 'Your profile has been updated.');
-    } finally { setSavingProfile(false); }
-  }
-
-  function openEditSupport() {
-    setEditPhone(supportDetails.phone);
-    setEditEmail(supportDetails.email);
-    setEditSupportAddr(supportDetails.address);
-    setEditHours(supportDetails.hours);
-    setShowSupportModal(true);
-  }
-
-  async function handleSaveSupport() {
-    setSaving(true);
-    try {
-      await updateSupportDetails({ phone: editPhone.trim(), email: editEmail.trim(), address: editSupportAddr.trim(), hours: editHours.trim() });
-      setShowSupportModal(false);
-      Alert.alert('✓ Saved', 'Support details updated.');
+      Alert.alert('✓ Updated', 'Profile saved successfully.');
     } finally { setSaving(false); }
   }
 
@@ -144,265 +132,259 @@ export default function ProfileScreen() {
   }
 
   const INFO_ROWS = [
-    { icon: 'mail',      label: lang === 'hi' ? 'ईमेल'          : 'Email',         value: user.email },
-    ...(user.mobile     ? [{ icon: 'smartphone', label: lang === 'hi' ? 'मोबाइल'        : 'Mobile',        value: user.mobile }]    : []),
-    ...(user.address    ? [{ icon: 'map-pin',    label: lang === 'hi' ? 'पता'            : 'Address',       value: user.address }]   : []),
-    ...(user.employeeId ? [{ icon: 'briefcase',  label: lang === 'hi' ? 'कर्मचारी आईडी' : 'Employee ID',   value: user.employeeId }]: []),
-    ...(user.wardId     ? [{ icon: 'map',        label: lang === 'hi' ? 'वार्ड'          : 'Assigned Ward', value: `Ward ${user.wardId.replace(/[^0-9]/g, '')}` }] : []),
-    { icon: 'calendar', label: lang === 'hi' ? 'सदस्य बने'    : 'Member Since',  value: user.createdAt ?? '—' },
-    { icon: 'hash',     label: lang === 'hi' ? 'उपयोगकर्ता आईडी' : 'User ID',   value: user.id },
+    { icon: 'mail',      grad: cfg.iconGrads[0],  label: lang === 'hi' ? 'ईमेल'          : 'Email',         value: user.email },
+    ...(user.mobile     ? [{ icon: 'phone',      grad: cfg.iconGrads[1],  label: lang === 'hi' ? 'मोबाइल'        : 'Mobile',        value: user.mobile }]    : []),
+    ...(user.address    ? [{ icon: 'map-pin',    grad: cfg.iconGrads[2],  label: lang === 'hi' ? 'पता'            : 'Address',       value: user.address }]   : []),
+    ...(user.employeeId ? [{ icon: 'briefcase',  grad: cfg.iconGrads[0],  label: lang === 'hi' ? 'कर्मचारी आईडी' : 'Employee ID',   value: user.employeeId }]: []),
+    ...(user.wardId     ? [{ icon: 'map',        grad: cfg.iconGrads[1],  label: lang === 'hi' ? 'वार्ड'          : 'Assigned Ward', value: `Ward ${user.wardId.replace(/[^0-9]/g, '')}` }] : []),
+    { icon: 'calendar', grad: cfg.iconGrads[2],  label: lang === 'hi' ? 'सदस्य बने'        : 'Member Since',  value: user.createdAt ?? '—' },
+    { icon: 'hash',     grad: cfg.iconGrads[0],  label: lang === 'hi' ? 'उपयोगकर्ता आईडी' : 'User ID',       value: user.id },
   ];
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#050C1A' }} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
 
-        {/* ── GRADIENT HEADER ── */}
-        <LinearGradient colors={roleGrad as any} style={styles.header} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-          <View style={styles.headerTopBar}>
-            <View style={styles.rolePill}>
-              <Feather name="shield" size={10} color="#FFFFFF" />
-              <Text style={styles.rolePillText}>{roleLabel}</Text>
+        {/* ── HERO ── */}
+        <View style={styles.hero}>
+          <LinearGradient colors={cfg.hero} style={StyleSheet.absoluteFill} />
+
+          <View style={styles.topBar}>
+            <View style={[styles.rolePill, { borderColor: cfg.accent + '50', backgroundColor: cfg.accent + '18' }]}>
+              <Feather name="shield" size={10} color={cfg.accentLight} />
+              <Text style={[styles.rolePillText, { color: cfg.accentLight }]}>{roleLabel}</Text>
             </View>
-            <TouchableOpacity style={styles.editIconBtn} onPress={openEdit} activeOpacity={0.8}>
-              <Feather name="edit-2" size={14} color="#FFFFFF" />
+            <TouchableOpacity style={styles.editBtn} onPress={openEdit} activeOpacity={0.8}>
+              <Feather name="edit-2" size={15} color="#fff" />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.headerCenter}>
-            <View style={styles.avatarRing}>
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarLetter}>{user.name[0].toUpperCase()}</Text>
+          <View style={styles.avatarWrap}>
+            <View style={[styles.avatarRing1, { borderColor: cfg.accent + '55' }]}>
+              <View style={[styles.avatarRing2, { borderColor: cfg.accent + '80' }]}>
+                <LinearGradient colors={cfg.grad as any} style={styles.avatarCore}>
+                  <Text style={styles.avatarLetter}>{user.name[0].toUpperCase()}</Text>
+                </LinearGradient>
               </View>
             </View>
-            <Text style={styles.profileName}>{user.name}</Text>
-            <Text style={styles.profileSub}>{user.employeeId ?? user.email}</Text>
+            <View style={[styles.onlineDot, { backgroundColor: cfg.accent, borderColor: '#050C1A' }]} />
           </View>
 
-          <View style={styles.headerBottom}>
-            <View style={styles.verifiedBadge}>
-              <Feather name="check-circle" size={11} color="#80FFC8" />
-              <Text style={styles.verifiedText}>{lang === 'hi' ? 'सत्यापित खाता' : 'Verified Account'}</Text>
+          <Text style={styles.heroName}>{user.name}</Text>
+          {user.employeeId
+            ? <Text style={[styles.heroSub, { color: cfg.accentLight + 'CC' }]}>{user.employeeId}</Text>
+            : null}
+          <Text style={[styles.heroEmail, { color: 'rgba(255,255,255,0.5)' }]}>{user.email}</Text>
+
+          <View style={styles.heroBadgeRow}>
+            <View style={styles.heroBadge}>
+              <Feather name="check-circle" size={10} color="#86EFAC" />
+              <Text style={styles.heroBadgeText}>Verified Account</Text>
             </View>
-            <Text style={styles.dnpVersion}>DNP360 v1.0</Text>
+            <View style={styles.heroBadge}>
+              <Feather name="calendar" size={10} color="#93C5FD" />
+              <Text style={styles.heroBadgeText}>{lang === 'hi' ? 'सदस्य' : 'Member'} {user.createdAt}</Text>
+            </View>
           </View>
-        </LinearGradient>
-
-        {/* ── STATS STRIP ── */}
-        <View style={[styles.statsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {statsRow.map((s, i) => (
-            <React.Fragment key={s.label}>
-              <View style={styles.statCell}>
-                <View style={[styles.statIcon, { backgroundColor: roleBg }]}>
-                  <Feather name={s.icon as any} size={13} color={roleColor} />
-                </View>
-                <Text style={[styles.statVal, { color: roleColor }]}>{s.value}</Text>
-                <Text style={[styles.statLbl, { color: colors.mutedForeground }]}>{s.label}</Text>
-              </View>
-              {i < statsRow.length - 1 && <View style={[styles.statSep, { backgroundColor: colors.border }]} />}
-            </React.Fragment>
-          ))}
         </View>
 
-        {/* ── ACCOUNT INFORMATION ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHead}>
-            <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
-              {lang === 'hi' ? 'खाता जानकारी' : 'ACCOUNT INFORMATION'}
-            </Text>
-            <Pressable onPress={openEdit} style={[styles.editChip, { backgroundColor: roleBg, borderColor: roleColor + '50' }]}>
-              <Feather name="edit-2" size={10} color={roleColor} />
-              <Text style={[styles.editChipText, { color: roleColor }]}>{lang === 'hi' ? 'संपादित' : 'Edit'}</Text>
-            </Pressable>
-          </View>
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {INFO_ROWS.map((row, i) => (
-              <View key={row.label} style={[styles.infoRow, i < INFO_ROWS.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
-                <View style={[styles.rowIcon, { backgroundColor: roleBg }]}>
-                  <Feather name={row.icon as any} size={14} color={roleColor} />
-                </View>
-                <View style={styles.rowText}>
-                  <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>{row.label}</Text>
-                  <Text style={[styles.rowValue, { color: colors.text }]} numberOfLines={1}>{row.value}</Text>
-                </View>
-                <Feather name="chevron-right" size={13} color={colors.border} />
+        <View style={styles.body}>
+          {/* ── STATS ── */}
+          <View style={styles.statsRow}>
+            {statsRow.map(s => (
+              <View key={s.label} style={styles.statCell}>
+                <LinearGradient colors={cfg.iconGrads[s.gi] as any} style={styles.statCard}>
+                  <Feather name={s.icon as any} size={18} color="#fff" />
+                  <Text style={styles.statVal}>{s.value}</Text>
+                </LinearGradient>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
               </View>
             ))}
           </View>
-        </View>
 
-        {/* ── SETTINGS ── */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.mutedForeground, marginBottom: 8 }]}>
-            {lang === 'hi' ? 'सेटिंग्स' : 'SETTINGS'}
-          </Text>
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.infoRow, { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
-              <View style={[styles.rowIcon, { backgroundColor: roleBg }]}>
-                <Feather name="bell" size={14} color={roleColor} />
-              </View>
-              <View style={styles.rowText}>
-                <Text style={[styles.rowValue, { color: colors.text }]}>{lang === 'hi' ? 'सूचनाएं' : 'Notifications'}</Text>
-                <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>{lang === 'hi' ? 'शिकायत अपडेट, नोटिस' : 'Complaints, notices, alerts'}</Text>
-              </View>
-              <Switch
-                value={notifEnabled}
-                onValueChange={setNotifEnabled}
-                trackColor={{ false: colors.border, true: roleColor + 'AA' }}
-                thumbColor={notifEnabled ? roleColor : colors.mutedForeground}
-              />
+          {/* ── ACCOUNT INFORMATION ── */}
+          <View style={styles.section}>
+            <View style={styles.sectionHead}>
+              <LinearGradient colors={cfg.grad as any} style={styles.sectionIcon}>
+                <Feather name="user" size={13} color="#fff" />
+              </LinearGradient>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                {lang === 'hi' ? 'खाता जानकारी' : 'Account Information'}
+              </Text>
+              <TouchableOpacity onPress={openEdit} style={[styles.editChip, { backgroundColor: cfg.accent + '15', borderColor: cfg.accent + '35' }]}>
+                <Feather name="edit-2" size={10} color={cfg.accent} />
+                <Text style={[styles.editChipText, { color: cfg.accent }]}>{lang === 'hi' ? 'संपादित' : 'Edit'}</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.infoRow} onPress={() => setShowLangModal(true)} activeOpacity={0.7}>
-              <View style={[styles.rowIcon, { backgroundColor: '#EDE9FE' }]}>
-                <Feather name="globe" size={14} color="#6B00C7" />
-              </View>
-              <View style={styles.rowText}>
-                <Text style={[styles.rowValue, { color: colors.text }]}>{lang === 'hi' ? 'भाषा' : 'Language'}</Text>
-                <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>{lang === 'hi' ? 'हिन्दी' : 'English (India)'}</Text>
-              </View>
-              <Feather name="chevron-right" size={13} color={colors.mutedForeground} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ── SUPPORT DETAILS ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHead}>
-            <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
-              {lang === 'hi' ? 'सहायता विवरण' : 'SUPPORT DETAILS'}
-            </Text>
-            {isAdmin && (
-              <Pressable onPress={openEditSupport} style={[styles.editChip, { backgroundColor: colors.adminBg, borderColor: colors.adminColor + '50' }]}>
-                <Feather name="edit-2" size={10} color={colors.adminColor} />
-                <Text style={[styles.editChipText, { color: colors.adminColor }]}>Edit</Text>
-              </Pressable>
-            )}
-          </View>
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {[
-              { icon: 'phone',   label: lang === 'hi' ? 'फोन'     : 'Phone',          value: supportDetails.phone },
-              { icon: 'mail',    label: lang === 'hi' ? 'ईमेल'    : 'Email',          value: supportDetails.email },
-              { icon: 'map-pin', label: lang === 'hi' ? 'कार्यालय' : 'Office Address', value: supportDetails.address },
-              { icon: 'clock',   label: lang === 'hi' ? 'समय'     : 'Office Hours',   value: supportDetails.hours },
-            ].map((row, i, arr) => (
-              <View key={row.label} style={[styles.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
-                <View style={[styles.rowIcon, { backgroundColor: '#E6F4EC' }]}>
-                  <Feather name={row.icon as any} size={14} color="#006A35" />
-                </View>
-                <View style={styles.rowText}>
-                  <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>{row.label}</Text>
-                  <Text style={[styles.rowValue, { color: colors.text }]}>{row.value}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        {/* ── ABOUT DNP360 ── */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.mutedForeground, marginBottom: 8 }]}>
-            {lang === 'hi' ? 'ऐप के बारे में' : 'ABOUT DNP360'}
-          </Text>
-          <LinearGradient colors={[roleGrad[0] + 'DD', roleGrad[1] + 'AA']} style={styles.aboutCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-            <View style={styles.aboutTop}>
-              <View>
-                <Text style={styles.aboutName}>DNP360</Text>
-                <Text style={styles.aboutVer}>v1.0.0 · Bihar, India</Text>
-              </View>
-              <View style={styles.aboutShieldWrap}>
-                <Feather name="shield" size={24} color="rgba(255,255,255,0.9)" />
-              </View>
-            </View>
-            <Text style={styles.aboutDesc}>
-              {lang === 'hi'
-                ? 'दौदनगर नगर परिषद 360 — नागरिकों, सफाई कर्मियों और अधिकारियों को जोड़ने वाली स्मार्ट शासन प्रणाली।'
-                : 'Daudnagar Nagar Parishad 360 — Smart governance connecting citizens, Safai Karmis, and officials for efficient municipal management.'}
-            </Text>
-            <View style={styles.aboutTags}>
-              {['Digital India', 'Smart Gov', 'Bihar'].map(t => (
-                <View key={t} style={styles.aboutTag}>
-                  <Text style={styles.aboutTagText}>{t}</Text>
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {INFO_ROWS.map((row, i, arr) => (
+                <View key={row.label} style={[styles.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+                  <LinearGradient colors={row.grad as any} style={styles.rowIcon}>
+                    <Feather name={row.icon as any} size={13} color="#fff" />
+                  </LinearGradient>
+                  <View style={styles.rowText}>
+                    <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>{row.label}</Text>
+                    <Text style={[styles.rowValue, { color: colors.text }]} numberOfLines={1}>{row.value}</Text>
+                  </View>
                 </View>
               ))}
             </View>
-          </LinearGradient>
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 10 }]}>
-            <TouchableOpacity style={styles.infoRow} onPress={() => {}} activeOpacity={0.7}>
-              <View style={[styles.rowIcon, { backgroundColor: colors.surface }]}>
-                <Feather name="file-text" size={14} color={colors.mutedForeground} />
-              </View>
-              <Text style={[styles.rowValue, { color: colors.text, flex: 1 }]}>{lang === 'hi' ? 'गोपनीयता नीति' : 'Privacy Policy'}</Text>
-              <Feather name="chevron-right" size={13} color={colors.mutedForeground} />
-            </TouchableOpacity>
           </View>
+
+          {/* ── SETTINGS ── */}
+          <View style={styles.section}>
+            <View style={styles.sectionHead}>
+              <LinearGradient colors={['#6B7280', '#374151']} style={styles.sectionIcon}>
+                <Feather name="settings" size={13} color="#fff" />
+              </LinearGradient>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                {lang === 'hi' ? 'सेटिंग्स' : 'Settings'}
+              </Text>
+            </View>
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.infoRow, { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+                <LinearGradient colors={['#F59E0B', '#EF4444']} style={styles.rowIcon}>
+                  <Feather name="bell" size={13} color="#fff" />
+                </LinearGradient>
+                <View style={styles.rowText}>
+                  <Text style={[styles.rowValue, { color: colors.text }]}>{lang === 'hi' ? 'सूचनाएं' : 'Notifications'}</Text>
+                  <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>{lang === 'hi' ? 'शिकायत अपडेट, नोटिस' : 'Complaints, notices, alerts'}</Text>
+                </View>
+                <Switch value={notifEnabled} onValueChange={setNotifEnabled} trackColor={{ false: colors.border, true: cfg.accent + 'AA' }} thumbColor={notifEnabled ? cfg.accent : colors.mutedForeground} />
+              </View>
+              <TouchableOpacity style={styles.infoRow} onPress={() => setShowLangModal(true)} activeOpacity={0.7}>
+                <LinearGradient colors={['#8B5CF6', '#6366F1']} style={styles.rowIcon}>
+                  <Feather name="globe" size={13} color="#fff" />
+                </LinearGradient>
+                <View style={styles.rowText}>
+                  <Text style={[styles.rowValue, { color: colors.text }]}>{lang === 'hi' ? 'भाषा' : 'Language'}</Text>
+                  <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>{lang === 'hi' ? 'हिन्दी' : 'English (India)'}</Text>
+                </View>
+                <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* ── SUPPORT DETAILS ── */}
+          <View style={styles.section}>
+            <View style={styles.sectionHead}>
+              <LinearGradient colors={['#10B981', '#059669']} style={styles.sectionIcon}>
+                <Feather name="phone-call" size={13} color="#fff" />
+              </LinearGradient>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                {lang === 'hi' ? 'सहायता विवरण' : 'Support Details'}
+              </Text>
+            </View>
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {[
+                { icon: 'phone',   grad: ['#10B981','#059669'] as const, label: lang === 'hi' ? 'फोन'      : 'Phone',          value: supportDetails.phone },
+                { icon: 'mail',    grad: ['#0EA5E9','#2563EB'] as const, label: lang === 'hi' ? 'ईमेल'     : 'Email',          value: supportDetails.email },
+                { icon: 'map-pin', grad: ['#EC4899','#DB2777'] as const, label: lang === 'hi' ? 'कार्यालय'  : 'Office Address', value: supportDetails.address },
+                { icon: 'clock',   grad: ['#F59E0B','#EF4444'] as const, label: lang === 'hi' ? 'समय'      : 'Office Hours',   value: supportDetails.hours },
+              ].map((row, i, arr) => (
+                <View key={row.label} style={[styles.infoRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
+                  <LinearGradient colors={row.grad} style={styles.rowIcon}>
+                    <Feather name={row.icon as any} size={13} color="#fff" />
+                  </LinearGradient>
+                  <View style={styles.rowText}>
+                    <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>{row.label}</Text>
+                    <Text style={[styles.rowValue, { color: colors.text }]}>{row.value}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* ── ABOUT ── */}
+          <View style={styles.section}>
+            <LinearGradient colors={['#0D1B4B', '#1A237E', '#283593']} style={styles.aboutCard}>
+              <View style={styles.aboutTop}>
+                <View>
+                  <Text style={styles.aboutTitle}>DNP360</Text>
+                  <Text style={styles.aboutVer}>v1.0.0 · Nagar Parishad Daudnagar</Text>
+                  <Text style={styles.aboutSub}>Bihar, India</Text>
+                </View>
+                <LinearGradient colors={['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.05)']} style={styles.aboutShield}>
+                  <Feather name="shield" size={26} color="rgba(255,255,255,0.9)" />
+                </LinearGradient>
+              </View>
+              <Text style={styles.aboutDesc}>
+                {lang === 'hi'
+                  ? 'दौदनगर नगर परिषद 360 — नागरिकों, सफाई कर्मियों और अधिकारियों को जोड़ने वाली स्मार्ट शासन प्रणाली।'
+                  : 'Smart governance connecting citizens, Safai Karmis, and officials for efficient municipal management.'}
+              </Text>
+              <View style={styles.aboutTags}>
+                {['Digital India', 'Smart Gov', 'Bihar'].map(t => (
+                  <View key={t} style={styles.aboutTag}>
+                    <Text style={styles.aboutTagText}>{t}</Text>
+                  </View>
+                ))}
+              </View>
+            </LinearGradient>
+          </View>
+
+          {/* ── SIGN OUT ── */}
+          <TouchableOpacity onPress={handleLogout} activeOpacity={0.85} style={styles.logoutWrap}>
+            <LinearGradient colors={['#FEF2F2', '#FEE2E2']} style={styles.logoutBtn}>
+              <View style={styles.logoutIcon}>
+                <Feather name="log-out" size={18} color="#DC2626" />
+              </View>
+              <Text style={styles.logoutText}>{lang === 'hi' ? 'साइन आउट' : 'Sign Out'}</Text>
+              <Feather name="chevron-right" size={16} color="#DC2626" />
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <Text style={[styles.footer, { color: colors.mutedForeground }]}>
+            DNP360 · Nagar Parishad Daudnagar · Bihar, India
+          </Text>
         </View>
-
-        {/* ── SIGN OUT ── */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
-          <Feather name="log-out" size={16} color="#C91B1B" />
-          <Text style={styles.logoutText}>{lang === 'hi' ? 'साइन आउट' : 'Sign Out'}</Text>
-        </TouchableOpacity>
-
-        <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
-          DNP360 · Nagar Parishad Daudnagar{'\n'}Bihar, India
-        </Text>
       </ScrollView>
 
       {/* ── EDIT PROFILE MODAL ── */}
       <Modal visible={showEditModal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-          <View style={[styles.modalBar, { borderBottomColor: colors.border }]}>
-            <View>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>{lang === 'hi' ? 'प्रोफ़ाइल संपादित करें' : 'Edit Profile'}</Text>
-              <Text style={[styles.modalSub, { color: colors.mutedForeground }]}>{lang === 'hi' ? 'अपनी जानकारी अपडेट करें' : 'Update your information'}</Text>
-            </View>
-            <Pressable style={[styles.closeBtn, { backgroundColor: colors.surface }]} onPress={() => setShowEditModal(false)}>
-              <Feather name="x" size={18} color={colors.text} />
+          <LinearGradient colors={cfg.grad as any} style={styles.modalHdr}>
+            <Text style={styles.modalHdrTitle}>{lang === 'hi' ? 'प्रोफ़ाइल संपादित करें' : 'Edit Profile'}</Text>
+            <Pressable style={styles.modalClose} onPress={() => setShowEditModal(false)}>
+              <Feather name="x" size={18} color="#fff" />
             </Pressable>
-          </View>
+          </LinearGradient>
           <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }}>
-            <View style={[styles.previewRow, { backgroundColor: roleBg }]}>
-              <View style={[styles.previewAvatar, { backgroundColor: roleColor }]}>
-                <Text style={styles.previewLetter}>{(editName[0] ?? user.name[0] ?? '?').toUpperCase()}</Text>
-              </View>
+            <View style={[styles.editPreview, { backgroundColor: cfg.accent + '12', borderColor: cfg.accent + '30' }]}>
+              <LinearGradient colors={cfg.grad as any} style={styles.editAvatar}>
+                <Text style={styles.editAvatarLetter}>{(editName[0] ?? user.name[0] ?? '?').toUpperCase()}</Text>
+              </LinearGradient>
               <View>
-                <Text style={[styles.previewName, { color: colors.text }]}>{editName || user.name}</Text>
-                <View style={[styles.previewBadge, { backgroundColor: roleColor + '22' }]}>
-                  <Text style={[styles.previewBadgeText, { color: roleColor }]}>{roleLabel}</Text>
-                </View>
+                <Text style={[styles.editName, { color: colors.text }]}>{editName || user.name}</Text>
+                <Text style={[styles.editRole, { color: cfg.accent }]}>{roleLabel}</Text>
               </View>
             </View>
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
             {[
-              { label: lang === 'hi' ? 'पूरा नाम *'    : 'Full Name *',    value: editName,    change: setEditName,    icon: 'user',        ph: 'Your full name',         caps: 'words'     as const, key: 'name' },
-              { label: lang === 'hi' ? 'मोबाइल नंबर'  : 'Mobile Number',  value: editMobile,  change: setEditMobile,  icon: 'smartphone',  ph: '10-digit mobile number', caps: 'none'      as const, key: 'mobile', num: true },
-              { label: lang === 'hi' ? 'पता'           : 'Address',        value: editAddress, change: setEditAddress, icon: 'map-pin',     ph: 'Street, Ward, City',     caps: 'sentences' as const, key: 'addr' },
+              { label: lang === 'hi' ? 'पूरा नाम *'   : 'Full Name *',   value: editName,    set: setEditName,    icon: 'user',     key: 'name', caps: 'words'     as const },
+              { label: lang === 'hi' ? 'मोबाइल नंबर' : 'Mobile Number', value: editMobile,  set: setEditMobile,  icon: 'phone',    key: 'mob',  caps: 'none'      as const, num: true },
+              { label: lang === 'hi' ? 'पता'          : 'Address',       value: editAddress, set: setEditAddress, icon: 'map-pin',  key: 'addr', caps: 'sentences' as const },
             ].map(f => (
               <View key={f.key}>
                 <Text style={[styles.fieldLabel, { color: colors.text }]}>{f.label}</Text>
-                <View style={[styles.fieldWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <Feather name={f.icon as any} size={16} color={roleColor} />
+                <View style={[styles.fieldRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Feather name={f.icon as any} size={16} color={cfg.accent} />
                   <TextInput
                     style={[styles.fieldInput, { color: colors.text }]}
                     value={f.value}
-                    onChangeText={f.change}
+                    onChangeText={f.set}
                     autoCapitalize={f.caps}
                     keyboardType={(f as any).num ? 'phone-pad' : 'default'}
-                    placeholder={f.ph}
+                    placeholder={f.label.replace(' *', '')}
                     placeholderTextColor={colors.mutedForeground}
                   />
                 </View>
               </View>
             ))}
-            <View style={[styles.notice, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-              <Feather name="info" size={13} color={colors.mutedForeground} />
-              <Text style={[styles.noticeText, { color: colors.mutedForeground }]}>
-                {lang === 'hi' ? 'ईमेल और कर्मचारी आईडी बदलने के लिए कार्यालय से संपर्क करें।' : 'To change email or Employee ID, contact the municipal office.'}
-              </Text>
-            </View>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: roleColor }, savingProfile && { opacity: 0.6 }]} onPress={handleSaveProfile} disabled={savingProfile} activeOpacity={0.85}>
-              <Feather name="check" size={16} color="#fff" />
-              <Text style={styles.saveBtnText}>{savingProfile ? (lang === 'hi' ? 'सहेज रहे हैं…' : 'Saving…') : (lang === 'hi' ? 'परिवर्तन सहेजें' : 'Save Changes')}</Text>
+            <TouchableOpacity onPress={handleSave} disabled={saving} activeOpacity={0.85} style={saving ? { opacity: 0.6 } : {}}>
+              <LinearGradient colors={cfg.grad as any} style={styles.saveBtn}>
+                <Feather name="check" size={16} color="#fff" />
+                <Text style={styles.saveBtnText}>{saving ? (lang === 'hi' ? 'सहेज रहे हैं…' : 'Saving…') : (lang === 'hi' ? 'परिवर्तन सहेजें' : 'Save Changes')}</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
@@ -416,136 +398,104 @@ export default function ProfileScreen() {
             {[{ key: 'en', label: 'English (India)', native: 'English' }, { key: 'hi', label: 'Hindi', native: 'हिन्दी' }].map(l => (
               <TouchableOpacity
                 key={l.key}
-                style={[styles.langOption, { borderColor: lang === l.key ? roleColor : colors.border, backgroundColor: lang === l.key ? roleBg : colors.surface }]}
+                style={[styles.langOpt, { borderColor: lang === l.key ? cfg.accent : colors.border, backgroundColor: lang === l.key ? cfg.accent + '15' : colors.surface }]}
                 onPress={() => { setLang(l.key as 'en' | 'hi'); AsyncStorage.setItem('dnp360_lang', l.key); setShowLangModal(false); }}
                 activeOpacity={0.8}
               >
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.langNative, { color: colors.text }]}>{l.native}</Text>
-                  <Text style={[styles.langSub, { color: colors.mutedForeground }]}>{l.label}</Text>
-                </View>
-                {lang === l.key && <Feather name="check-circle" size={20} color={roleColor} />}
+                <Text style={[styles.langNative, { color: colors.text }]}>{l.native}</Text>
+                {lang === l.key && <Feather name="check" size={16} color={cfg.accent} />}
               </TouchableOpacity>
             ))}
-            <Pressable style={[styles.cancelBtn, { backgroundColor: colors.surface }]} onPress={() => setShowLangModal(false)}>
-              <Text style={[styles.cancelBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
-            </Pressable>
+            <TouchableOpacity onPress={() => setShowLangModal(false)} style={[styles.cancelBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>Cancel</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
-
-      {/* ── EDIT SUPPORT MODAL (Admin only) ── */}
-      <Modal visible={showSupportModal} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-          <View style={[styles.modalBar, { borderBottomColor: colors.border }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Support Details</Text>
-            <Pressable style={[styles.closeBtn, { backgroundColor: colors.surface }]} onPress={() => setShowSupportModal(false)}>
-              <Feather name="x" size={18} color={colors.text} />
-            </Pressable>
-          </View>
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
-            {[
-              { label: 'Phone',          value: editPhone,       setter: setEditPhone,       icon: 'phone' },
-              { label: 'Email',          value: editEmail,       setter: setEditEmail,       icon: 'mail' },
-              { label: 'Office Address', value: editSupportAddr, setter: setEditSupportAddr, icon: 'map-pin' },
-              { label: 'Office Hours',   value: editHours,       setter: setEditHours,       icon: 'clock' },
-            ].map(f => (
-              <View key={f.label}>
-                <Text style={[styles.fieldLabel, { color: colors.text }]}>{f.label}</Text>
-                <View style={[styles.fieldWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <Feather name={f.icon as any} size={16} color={colors.adminColor} />
-                  <TextInput style={[styles.fieldInput, { color: colors.text }]} value={f.value} onChangeText={f.setter} autoCapitalize="none" placeholderTextColor={colors.mutedForeground} />
-                </View>
-              </View>
-            ))}
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.adminColor }, saving && { opacity: 0.6 }]} onPress={handleSaveSupport} disabled={saving} activeOpacity={0.85}>
-              <Feather name="check" size={16} color="#fff" />
-              <Text style={styles.saveBtnText}>{saving ? 'Saving…' : 'Save Changes'}</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        </SafeAreaView>
       </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { paddingTop: 16, paddingBottom: 20, paddingHorizontal: 18, gap: 14 },
-  headerTopBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  rolePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
-  rolePillText: { color: '#FFFFFF', fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  editIconBtn: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
-  headerCenter: { alignItems: 'center', gap: 4 },
-  avatarRing: { width: 82, height: 82, borderRadius: 41, borderWidth: 2.5, borderColor: 'rgba(255,255,255,0.45)', justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-  avatarCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-  avatarLetter: { color: '#FFFFFF', fontSize: 32, fontFamily: 'Inter_700Bold' },
-  profileName: { color: '#FFFFFF', fontSize: 21, fontFamily: 'Inter_700Bold' },
-  profileSub: { color: 'rgba(255,255,255,0.65)', fontSize: 12, fontFamily: 'Inter_400Regular' },
-  headerBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  verifiedText: { color: '#80FFC8', fontSize: 11, fontFamily: 'Inter_500Medium' },
-  dnpVersion: { color: 'rgba(255,255,255,0.45)', fontSize: 10, fontFamily: 'Inter_400Regular' },
+  hero: { overflow: 'hidden', paddingBottom: 28 },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 14, marginBottom: 20 },
+  rolePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99, borderWidth: 1 },
+  rolePillText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  editBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center' },
 
-  statsCard: { flexDirection: 'row', marginHorizontal: 16, marginTop: 14, borderRadius: 16, borderWidth: 1, padding: 14, alignItems: 'center' },
-  statCell: { flex: 1, alignItems: 'center', gap: 5 },
-  statIcon: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  statVal: { fontSize: 22, fontFamily: 'Inter_700Bold' },
-  statLbl: { fontSize: 10, fontFamily: 'Inter_500Medium', textAlign: 'center' },
-  statSep: { width: 1, height: 40, marginHorizontal: 4 },
+  avatarWrap: { alignItems: 'center', marginBottom: 16, position: 'relative' },
+  avatarRing1: { width: 100, height: 100, borderRadius: 50, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
+  avatarRing2: { width: 90, height: 90, borderRadius: 45, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
+  avatarCore: { width: 78, height: 78, borderRadius: 39, justifyContent: 'center', alignItems: 'center' },
+  avatarLetter: { color: '#fff', fontSize: 32, fontFamily: 'Inter_700Bold' },
+  onlineDot: { position: 'absolute', bottom: 4, right: '36%', width: 14, height: 14, borderRadius: 7, borderWidth: 2 },
 
-  section: { marginTop: 20, paddingHorizontal: 16 },
-  sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  sectionTitle: { fontSize: 11, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.8 },
-  editChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99, borderWidth: 1 },
-  editChipText: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
+  heroName: { color: '#fff', fontSize: 24, fontFamily: 'Inter_700Bold', textAlign: 'center', paddingHorizontal: 20 },
+  heroSub: { fontSize: 13, fontFamily: 'Inter_500Medium', textAlign: 'center', marginTop: 2 },
+  heroEmail: { fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center', marginTop: 2, marginBottom: 12 },
+  heroBadgeRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 4 },
+  heroBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99 },
+  heroBadgeText: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontFamily: 'Inter_500Medium' },
+
+  body: { padding: 16, gap: 18 },
+
+  statsRow: { flexDirection: 'row', gap: 10 },
+  statCell: { flex: 1, alignItems: 'center', gap: 6 },
+  statCard: { width: '100%', aspectRatio: 1, borderRadius: 16, justifyContent: 'center', alignItems: 'center', gap: 6 },
+  statVal: { color: '#fff', fontSize: 22, fontFamily: 'Inter_700Bold' },
+  statLabel: { fontSize: 10, fontFamily: 'Inter_600SemiBold', textAlign: 'center' },
+
+  section: { gap: 10 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sectionIcon: { width: 30, height: 30, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
+  sectionTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', flex: 1 },
+  editChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99, borderWidth: 1 },
+  editChipText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+
   card: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13 },
+  rowIcon: { width: 32, height: 32, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
+  rowText: { flex: 1 },
+  rowLabel: { fontSize: 10, fontFamily: 'Inter_400Regular', marginBottom: 1 },
+  rowValue: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
 
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 16, paddingVertical: 13 },
-  rowIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
-  rowText: { flex: 1, gap: 2 },
-  rowLabel: { fontSize: 10, fontFamily: 'Inter_500Medium' },
-  rowValue: { fontSize: 13, fontFamily: 'Inter_500Medium' },
-
-  aboutCard: { borderRadius: 16, padding: 18, gap: 10 },
+  aboutCard: { borderRadius: 20, padding: 20, gap: 12 },
   aboutTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  aboutName: { color: '#FFFFFF', fontSize: 22, fontFamily: 'Inter_700Bold' },
-  aboutVer: { color: 'rgba(255,255,255,0.65)', fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  aboutShieldWrap: { width: 48, height: 48, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
-  aboutDesc: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 18 },
-  aboutTags: { flexDirection: 'row', gap: 8 },
-  aboutTag: { backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
-  aboutTagText: { color: '#FFFFFF', fontSize: 10, fontFamily: 'Inter_600SemiBold' },
+  aboutTitle: { color: '#fff', fontSize: 22, fontFamily: 'Inter_700Bold' },
+  aboutVer: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontFamily: 'Inter_500Medium', marginTop: 3 },
+  aboutSub: { color: 'rgba(255,255,255,0.5)', fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  aboutShield: { width: 52, height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  aboutDesc: { color: 'rgba(255,255,255,0.75)', fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 19 },
+  aboutTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  aboutTag: { backgroundColor: 'rgba(255,255,255,0.12)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
+  aboutTagText: { color: 'rgba(255,255,255,0.85)', fontSize: 10, fontFamily: 'Inter_600SemiBold' },
 
-  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginHorizontal: 16, marginTop: 24, borderRadius: 16, paddingVertical: 15, backgroundColor: '#FDECEA', borderWidth: 1, borderColor: '#F8C4C4' },
-  logoutText: { color: '#C91B1B', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  footerText: { textAlign: 'center', fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 16, marginBottom: 8, lineHeight: 18 },
+  logoutWrap: { borderRadius: 16, overflow: 'hidden' },
+  logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
+  logoutIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#FEE2E2', justifyContent: 'center', alignItems: 'center' },
+  logoutText: { flex: 1, color: '#DC2626', fontSize: 15, fontFamily: 'Inter_700Bold' },
 
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
-  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 12 },
-  sheetTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', marginBottom: 4, textAlign: 'center' },
-  langOption: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1.5, padding: 16 },
-  langNative: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
-  langSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  cancelBtn: { borderRadius: 14, paddingVertical: 13, alignItems: 'center' },
-  cancelBtnText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
+  footer: { textAlign: 'center', fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: -6 },
 
-  modalBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
-  modalTitle: { fontSize: 20, fontFamily: 'Inter_700Bold' },
-  modalSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  closeBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
-
-  previewRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 14 },
-  previewAvatar: { width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center' },
-  previewLetter: { color: '#FFFFFF', fontSize: 22, fontFamily: 'Inter_700Bold' },
-  previewName: { fontSize: 16, fontFamily: 'Inter_700Bold', marginBottom: 4 },
-  previewBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 99 },
-  previewBadgeText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  divider: { height: 1 },
+  modalHdr: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18 },
+  modalHdrTitle: { color: '#fff', fontSize: 20, fontFamily: 'Inter_700Bold' },
+  modalClose: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+  editPreview: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 14, borderWidth: 1 },
+  editAvatar: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
+  editAvatarLetter: { color: '#fff', fontSize: 22, fontFamily: 'Inter_700Bold' },
+  editName: { fontSize: 16, fontFamily: 'Inter_700Bold' },
+  editRole: { fontSize: 12, fontFamily: 'Inter_500Medium', marginTop: 2 },
   fieldLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', marginBottom: 6 },
-  fieldWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14 },
-  fieldInput: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', paddingVertical: 13 },
-  notice: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 10, borderWidth: 1, padding: 12 },
-  noticeText: { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 17 },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 15, marginTop: 4 },
-  saveBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  fieldRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14 },
+  fieldInput: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', paddingVertical: 14 },
+  saveBtn: { borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 15 },
+  saveBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },
+
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, gap: 12 },
+  sheetTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', marginBottom: 4 },
+  langOpt: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderRadius: 14, borderWidth: 1.5, paddingHorizontal: 16, paddingVertical: 14 },
+  langNative: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  cancelBtn: { borderRadius: 14, borderWidth: 1, paddingVertical: 13, alignItems: 'center', marginTop: 4 },
+  cancelText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
 });

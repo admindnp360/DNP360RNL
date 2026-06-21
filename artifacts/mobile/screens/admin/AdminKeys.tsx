@@ -1,14 +1,22 @@
 import { Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Alert, Modal, Pressable, ScrollView, StyleSheet,
+  Text, TouchableOpacity, View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppData } from '@/contexts/AppContext';
 import { useColors } from '@/hooks/useColors';
 import type { SecretKey } from '@/types';
 
 const ROLE_LABELS: Record<string, string> = { safaikarmi: 'Safai Karmi', official: 'Official', admin: 'Admin' };
-const ROLE_COLORS: Record<string, string> = { safaikarmi: '#006A35', official: '#904D00', admin: '#003884' };
-const ROLE_BG: Record<string, string> = { safaikarmi: '#D1FAE5', official: '#FFDCC3', admin: '#D7E3FF' };
+const ROLE_GRADS: Record<string, readonly [string, string]> = {
+  safaikarmi: ['#10B981', '#059669'],
+  official:   ['#F59E0B', '#EF4444'],
+  admin:      ['#6366F1', '#8B5CF6'],
+};
+const ROLE_ICONS: Record<string, string> = { safaikarmi: 'trash-2', official: 'briefcase', admin: 'shield' };
 
 export default function AdminKeys() {
   const { secretKeys, users, addSecretKey, toggleSecretKey, deleteSecretKey } = useAppData();
@@ -23,19 +31,15 @@ export default function AdminKeys() {
     return true;
   });
 
-  const getUserName = (userId?: string) => {
-    if (!userId) return null;
-    return users.find(u => u.id === userId)?.name ?? null;
-  };
+  const activeCount   = secretKeys.filter(k => k.isActive).length;
+  const revokedCount  = secretKeys.filter(k => !k.isActive).length;
+  const usedCount     = secretKeys.filter(k => !!k.usedBy).length;
+
+  const getUserName = (userId?: string) => userId ? users.find(u => u.id === userId)?.name ?? null : null;
 
   async function handleGenerate(role: SecretKey['role']) {
     setGenerating(true);
-    try {
-      const key = await addSecretKey(role);
-      setNewKey(key);
-    } finally {
-      setGenerating(false);
-    }
+    try { setNewKey(await addSecretKey(role)); } finally { setGenerating(false); }
   }
 
   function handleToggle(k: SecretKey) {
@@ -53,95 +57,159 @@ export default function AdminKeys() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Secret Keys</Text>
-        <View style={[styles.countBadge, { backgroundColor: colors.adminBg }]}>
-          <Text style={[styles.countText, { color: colors.adminColor }]}>{secretKeys.filter(k => k.isActive).length} active</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#050818' }} edges={['top']}>
+      {/* ── HERO ── */}
+      <LinearGradient colors={['#0A0018', '#1A0050', '#2D007A']} style={styles.hero}>
+        <View style={styles.heroTop}>
+          <View>
+            <Text style={styles.heroTitle}>Secret Keys</Text>
+            <Text style={styles.heroSub}>Access code management</Text>
+          </View>
+          <LinearGradient colors={['rgba(255,255,255,0.15)', 'rgba(255,255,255,0.05)']} style={styles.heroKeyIcon}>
+            <Feather name="key" size={22} color="rgba(255,255,255,0.9)" />
+          </LinearGradient>
         </View>
-      </View>
+        <View style={styles.heroStats}>
+          {[
+            { label: 'Total',   value: secretKeys.length, grad: ['#6366F1','#8B5CF6'] as const },
+            { label: 'Active',  value: activeCount,        grad: ['#10B981','#059669'] as const },
+            { label: 'Revoked', value: revokedCount,       grad: ['#EF4444','#DC2626'] as const },
+            { label: 'Used',    value: usedCount,          grad: ['#F59E0B','#EF4444'] as const },
+          ].map(s => (
+            <LinearGradient key={s.label} colors={s.grad} style={styles.heroStat}>
+              <Text style={styles.heroStatVal}>{s.value}</Text>
+              <Text style={styles.heroStatLbl}>{s.label}</Text>
+            </LinearGradient>
+          ))}
+        </View>
+      </LinearGradient>
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
-        {/* Generate Section */}
-        <View style={[styles.generateCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.generateTitle, { color: colors.text }]}>Generate New Key</Text>
-          <Text style={[styles.generateSub, { color: colors.mutedForeground }]}>Select role to create a unique access code</Text>
-          <View style={styles.roleButtonRow}>
+      <ScrollView
+        style={{ backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── GENERATE CARD ── */}
+        <LinearGradient colors={['#0D1B4B', '#1A237E']} style={styles.genCard}>
+          <View style={styles.genCardTop}>
+            <LinearGradient colors={['rgba(255,255,255,0.15)','rgba(255,255,255,0.05)']} style={styles.genCardIcon}>
+              <Feather name="plus-circle" size={18} color="#fff" />
+            </LinearGradient>
+            <View>
+              <Text style={styles.genCardTitle}>Generate New Key</Text>
+              <Text style={styles.genCardSub}>Unique access code for registration</Text>
+            </View>
+          </View>
+          <View style={styles.genBtnRow}>
             {(['safaikarmi', 'official', 'admin'] as const).map(role => (
               <TouchableOpacity
                 key={role}
-                style={[styles.roleBtn, { backgroundColor: ROLE_BG[role], opacity: generating ? 0.6 : 1 }]}
+                style={[styles.genBtnWrap, { opacity: generating ? 0.5 : 1 }]}
                 onPress={() => handleGenerate(role)}
                 disabled={generating}
                 activeOpacity={0.8}
               >
-                <Feather name={role === 'safaikarmi' ? 'trash' : role === 'official' ? 'briefcase' : 'shield'} size={13} color={ROLE_COLORS[role]} />
-                <Text style={[styles.roleBtnText, { color: ROLE_COLORS[role] }]}>{ROLE_LABELS[role]}</Text>
+                <LinearGradient colors={ROLE_GRADS[role]} style={styles.genBtn}>
+                  <Feather name={ROLE_ICONS[role] as any} size={14} color="#fff" />
+                  <Text style={styles.genBtnText}>{ROLE_LABELS[role]}</Text>
+                </LinearGradient>
               </TouchableOpacity>
             ))}
           </View>
-        </View>
+          {generating && (
+            <View style={styles.genLoading}>
+              <Feather name="loader" size={14} color="rgba(255,255,255,0.7)" />
+              <Text style={styles.genLoadingText}>Generating…</Text>
+            </View>
+          )}
+        </LinearGradient>
 
-        {/* Filter */}
+        {/* ── FILTER TABS ── */}
         <View style={styles.filterRow}>
-          {(['all', 'active', 'inactive'] as const).map(f => (
-            <Pressable
-              key={f}
-              style={[styles.filterChip, { backgroundColor: filter === f ? colors.adminColor : colors.card, borderColor: filter === f ? colors.adminColor : colors.border }]}
-              onPress={() => setFilter(f)}
-            >
-              <Text style={[styles.filterChipText, { color: filter === f ? '#fff' : colors.mutedForeground }]}>
-                {f === 'all' ? 'All' : f === 'active' ? '● Active' : '○ Revoked'}
-              </Text>
-            </Pressable>
-          ))}
+          {([
+            { key: 'all',      label: `All (${secretKeys.length})`,  icon: 'list' },
+            { key: 'active',   label: `Active (${activeCount})`,    icon: 'check-circle' },
+            { key: 'inactive', label: `Revoked (${revokedCount})`,  icon: 'x-circle' },
+          ] as const).map(f => {
+            const active = filter === f.key;
+            return active ? (
+              <LinearGradient key={f.key} colors={['#6366F1','#8B5CF6']} style={styles.filterActive}>
+                <Feather name={f.icon} size={11} color="#fff" />
+                <Text style={styles.filterActiveText}>{f.label}</Text>
+              </LinearGradient>
+            ) : (
+              <Pressable key={f.key} style={[styles.filterBtn, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => setFilter(f.key)}>
+                <Feather name={f.icon} size={11} color={colors.mutedForeground} />
+                <Text style={[styles.filterBtnText, { color: colors.mutedForeground }]}>{f.label}</Text>
+              </Pressable>
+            );
+          })}
         </View>
 
-        {/* Keys List */}
+        {/* ── KEYS LIST ── */}
         {filteredKeys.map(k => {
+          const grad = ROLE_GRADS[k.role] ?? ['#6366F1', '#8B5CF6'] as const;
           const assignedName = getUserName(k.usedBy);
           return (
-            <View key={k.id} style={[styles.keyCard, { backgroundColor: colors.card, borderColor: colors.border, opacity: k.isActive ? 1 : 0.65 }]}>
-              <View style={styles.keyRow}>
-                <View style={[styles.roleTag, { backgroundColor: ROLE_BG[k.role] }]}>
-                  <Text style={[styles.roleTagText, { color: ROLE_COLORS[k.role] }]}>{ROLE_LABELS[k.role]}</Text>
+            <View key={k.id} style={[styles.keyCard, { backgroundColor: colors.card, borderColor: colors.border, opacity: k.isActive ? 1 : 0.7 }]}>
+              <LinearGradient colors={grad} style={styles.keyAccent} />
+              <View style={styles.keyInner}>
+                {/* Header row */}
+                <View style={styles.keyHeader}>
+                  <LinearGradient colors={grad} style={styles.keyRoleIcon}>
+                    <Feather name={ROLE_ICONS[k.role] as any} size={13} color="#fff" />
+                  </LinearGradient>
+                  <View style={{ flex: 1 }}>
+                    <LinearGradient colors={grad} style={styles.keyRoleBadge}>
+                      <Text style={styles.keyRoleBadgeText}>{ROLE_LABELS[k.role]}</Text>
+                    </LinearGradient>
+                    <Text style={[styles.keyDate, { color: colors.mutedForeground }]}>{k.createdAt}</Text>
+                  </View>
+                  <View style={[styles.keyStatusPill, { backgroundColor: k.isActive ? '#D1FAE5' : '#FEE2E2' }]}>
+                    <View style={[styles.keyStatusDot, { backgroundColor: k.isActive ? '#10B981' : '#EF4444' }]} />
+                    <Text style={[styles.keyStatusText, { color: k.isActive ? '#059669' : '#DC2626' }]}>{k.isActive ? 'Active' : 'Revoked'}</Text>
+                  </View>
                 </View>
-                <View style={[styles.codeWrap, { backgroundColor: colors.surface }]}>
-                  <Feather name="key" size={11} color={colors.adminColor} />
-                  <Text style={[styles.codeText, { color: colors.text }]}>{k.code}</Text>
-                </View>
-                <View style={{ flex: 1 }} />
-                <TouchableOpacity style={[styles.iconBtn, { backgroundColor: k.isActive ? '#FFF3E0' : colors.resolvedBg }]} onPress={() => handleToggle(k)} activeOpacity={0.7}>
-                  <Feather name={k.isActive ? 'lock' : 'unlock'} size={15} color={k.isActive ? colors.official : colors.resolved} />
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.iconBtn, { backgroundColor: '#FDECEA' }]} onPress={() => handleDelete(k)} activeOpacity={0.7}>
-                  <Feather name="trash-2" size={15} color={colors.destructive} />
-                </TouchableOpacity>
-              </View>
 
-              {assignedName && (
-                <View style={styles.assignedRow}>
-                  <Feather name="user-check" size={11} color={colors.safaikarmi} />
-                  <Text style={[styles.assignedText, { color: colors.text }]}>Used by: <Text style={{ fontFamily: 'Inter_600SemiBold' }}>{assignedName}</Text></Text>
-                </View>
-              )}
+                {/* Code display */}
+                <LinearGradient colors={[grad[0] + '18', grad[1] + '10']} style={[styles.codeBox, { borderColor: grad[0] + '35' }]}>
+                  <Feather name="key" size={14} color={grad[0]} />
+                  <Text style={[styles.codeText, { color: grad[0] }]}>{k.code}</Text>
+                  <View style={{ flex: 1 }} />
+                  {k.usedBy && (
+                    <View style={[styles.usedChip, { backgroundColor: grad[0] + '15' }]}>
+                      <Feather name="user-check" size={9} color={grad[0]} />
+                      <Text style={[styles.usedChipText, { color: grad[0] }]}>Used</Text>
+                    </View>
+                  )}
+                </LinearGradient>
 
-              <View style={[styles.metaRow, { borderTopColor: colors.border }]}>
-                {k.usedBy && (
-                  <View style={styles.metaItem}>
-                    <Feather name="hash" size={9} color={colors.mutedForeground} />
-                    <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{k.usedBy}</Text>
+                {/* Assigned to */}
+                {assignedName && (
+                  <View style={[styles.assignedRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <LinearGradient colors={grad} style={styles.assignedAvatar}>
+                      <Text style={styles.assignedAvatarLetter}>{assignedName[0].toUpperCase()}</Text>
+                    </LinearGradient>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.assignedLabel, { color: colors.mutedForeground }]}>Registered by</Text>
+                      <Text style={[styles.assignedName, { color: colors.text }]}>{assignedName}</Text>
+                    </View>
+                    <Feather name="check-circle" size={14} color="#10B981" />
                   </View>
                 )}
-                <View style={styles.metaItem}>
-                  <Feather name="calendar" size={9} color={colors.mutedForeground} />
-                  <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{k.createdAt}</Text>
-                </View>
-                <View style={styles.metaItem}>
-                  <View style={[styles.statusDot, { backgroundColor: k.isActive ? colors.resolved : colors.destructive }]} />
-                  <Text style={[styles.metaText, { color: k.isActive ? colors.resolved : colors.destructive }]}>
-                    {k.isActive ? 'Active' : 'Revoked'}
-                  </Text>
+
+                {/* Actions */}
+                <View style={styles.keyActions}>
+                  <TouchableOpacity
+                    style={[styles.keyActionBtn, { flex: 1, backgroundColor: k.isActive ? '#FEF3C7' : '#D1FAE5' }]}
+                    onPress={() => handleToggle(k)} activeOpacity={0.8}
+                  >
+                    <Feather name={k.isActive ? 'lock' : 'unlock'} size={13} color={k.isActive ? '#D97706' : '#059669'} />
+                    <Text style={[styles.keyActionText, { color: k.isActive ? '#D97706' : '#059669' }]}>{k.isActive ? 'Revoke' : 'Activate'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.keyActionIconBtn, { backgroundColor: '#FEF2F2' }]} onPress={() => handleDelete(k)} activeOpacity={0.8}>
+                    <Feather name="trash-2" size={14} color="#EF4444" />
+                  </TouchableOpacity>
                 </View>
               </View>
             </View>
@@ -150,33 +218,46 @@ export default function AdminKeys() {
 
         {filteredKeys.length === 0 && (
           <View style={[styles.empty, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Feather name="key" size={36} color={colors.mutedForeground} />
-            <Text style={{ color: colors.mutedForeground, fontSize: 13, fontFamily: 'Inter_400Regular' }}>No keys found</Text>
+            <LinearGradient colors={['#6366F1', '#8B5CF6']} style={styles.emptyIcon}>
+              <Feather name="key" size={28} color="#fff" />
+            </LinearGradient>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No keys found</Text>
+            <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>Generate a key above to get started</Text>
           </View>
         )}
       </ScrollView>
 
-      {/* New Key Modal */}
+      {/* ── NEW KEY CELEBRATION MODAL ── */}
       <Modal visible={!!newKey} animationType="slide" transparent>
         <View style={styles.overlay}>
-          <View style={[styles.newKeySheet, { backgroundColor: colors.card }]}>
-            <View style={[styles.newKeyIconWrap, { backgroundColor: colors.adminBg }]}>
-              <Feather name="key" size={28} color={colors.adminColor} />
+          <LinearGradient colors={['#050818', '#0D1B4B']} style={styles.newKeySheet}>
+            {/* Celebration ring */}
+            <View style={styles.celebRing}>
+              <LinearGradient colors={ROLE_GRADS[newKey?.role ?? 'admin']} style={styles.celebGrad}>
+                <Feather name="key" size={32} color="#fff" />
+              </LinearGradient>
             </View>
-            <Text style={[styles.newKeyTitle, { color: colors.text }]}>Key Generated!</Text>
-            <Text style={[styles.newKeyRole, { color: colors.mutedForeground }]}>
+            <Text style={styles.celebTitle}>Key Generated!</Text>
+            <Text style={[styles.celebRole, { color: 'rgba(255,255,255,0.65)' }]}>
               {ROLE_LABELS[newKey?.role ?? 'admin']} Access Code
             </Text>
-            <View style={[styles.newCodeBox, { backgroundColor: colors.adminBg, borderColor: colors.adminColor + '60' }]}>
-              <Text style={[styles.newCode, { color: colors.adminColor }]}>{newKey?.code}</Text>
+
+            <LinearGradient colors={ROLE_GRADS[newKey?.role ?? 'admin']} style={styles.codeReveal}>
+              <Feather name="key" size={16} color="rgba(255,255,255,0.7)" />
+              <Text style={styles.codeRevealText}>{newKey?.code}</Text>
+            </LinearGradient>
+
+            <View style={[styles.celebNote, { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.1)' }]}>
+              <Feather name="alert-circle" size={13} color="rgba(255,255,255,0.5)" />
+              <Text style={styles.celebNoteText}>Share this code securely. It will not be shown again after closing.</Text>
             </View>
-            <Text style={[styles.newKeyNote, { color: colors.mutedForeground }]}>
-              Share this code securely. It will not be shown again after closing.
-            </Text>
-            <TouchableOpacity style={[styles.closeKeyBtn, { backgroundColor: colors.adminColor }]} onPress={() => setNewKey(null)} activeOpacity={0.85}>
-              <Text style={styles.closeKeyBtnText}>Done</Text>
+
+            <TouchableOpacity onPress={() => setNewKey(null)} activeOpacity={0.85}>
+              <LinearGradient colors={ROLE_GRADS[newKey?.role ?? 'admin']} style={styles.celebDoneBtn}>
+                <Text style={styles.celebDoneText}>Done</Text>
+              </LinearGradient>
             </TouchableOpacity>
-          </View>
+          </LinearGradient>
         </View>
       </Modal>
     </SafeAreaView>
@@ -184,41 +265,77 @@ export default function AdminKeys() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingBottom: 12, borderBottomWidth: 1 },
-  title: { fontSize: 22, fontFamily: 'Inter_700Bold' },
-  countBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99 },
-  countText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
-  generateCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 8 },
-  generateTitle: { fontSize: 15, fontFamily: 'Inter_700Bold' },
-  generateSub: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  roleButtonRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  roleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10, borderRadius: 10 },
-  roleBtnText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  hero: { padding: 20, paddingBottom: 22, gap: 16 },
+  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  heroTitle: { color: '#fff', fontSize: 26, fontFamily: 'Inter_700Bold' },
+  heroSub: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  heroKeyIcon: { width: 52, height: 52, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  heroStats: { flexDirection: 'row', gap: 8 },
+  heroStat: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center', gap: 2 },
+  heroStatVal: { color: '#fff', fontSize: 20, fontFamily: 'Inter_700Bold' },
+  heroStatLbl: { color: 'rgba(255,255,255,0.7)', fontSize: 9, fontFamily: 'Inter_600SemiBold' },
+
+  genCard: { borderRadius: 20, padding: 18, gap: 16 },
+  genCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  genCardIcon: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
+  genCardTitle: { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
+  genCardSub: { color: 'rgba(255,255,255,0.55)', fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  genBtnRow: { flexDirection: 'row', gap: 8 },
+  genBtnWrap: { flex: 1 },
+  genBtn: { borderRadius: 12, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  genBtnText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_700Bold' },
+  genLoading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  genLoadingText: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontFamily: 'Inter_400Regular' },
+
   filterRow: { flexDirection: 'row', gap: 8 },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 99, borderWidth: 1 },
-  filterChipText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
-  keyCard: { borderRadius: 14, padding: 14, borderWidth: 1, gap: 8 },
-  keyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  roleTag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 99 },
-  roleTagText: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
-  codeWrap: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-  codeText: { fontSize: 14, fontFamily: 'Inter_700Bold', letterSpacing: 1 },
-  iconBtn: { width: 34, height: 34, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
-  assignedRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  assignedText: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', paddingTop: 8, borderTopWidth: 1 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontSize: 10, fontFamily: 'Inter_400Regular' },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
-  empty: { borderRadius: 16, padding: 40, borderWidth: 1, alignItems: 'center', gap: 10 },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
-  newKeySheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 28, alignItems: 'center', gap: 12 },
-  newKeyIconWrap: { width: 72, height: 72, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-  newKeyTitle: { fontSize: 22, fontFamily: 'Inter_700Bold' },
-  newKeyRole: { fontSize: 14, fontFamily: 'Inter_400Regular' },
-  newCodeBox: { borderRadius: 16, paddingHorizontal: 28, paddingVertical: 20, borderWidth: 2, alignSelf: 'stretch', alignItems: 'center' },
-  newCode: { fontSize: 28, fontFamily: 'Inter_700Bold', letterSpacing: 4 },
-  newKeyNote: { fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 18 },
-  closeKeyBtn: { borderRadius: 14, paddingVertical: 14, paddingHorizontal: 40 },
-  closeKeyBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  filterActive: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 12, paddingVertical: 10 },
+  filterActiveText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_700Bold' },
+  filterBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 12, paddingVertical: 10, borderWidth: 1 },
+  filterBtnText: { fontSize: 11, fontFamily: 'Inter_500Medium' },
+
+  keyCard: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  keyAccent: { height: 4 },
+  keyInner: { padding: 14, gap: 10 },
+  keyHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  keyRoleIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  keyRoleBadge: { borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start' },
+  keyRoleBadgeText: { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
+  keyDate: { fontSize: 10, fontFamily: 'Inter_400Regular', marginTop: 3 },
+  keyStatusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 99 },
+  keyStatusDot: { width: 6, height: 6, borderRadius: 3 },
+  keyStatusText: { fontSize: 10, fontFamily: 'Inter_700Bold' },
+
+  codeBox: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
+  codeText: { fontSize: 20, fontFamily: 'Inter_700Bold', letterSpacing: 2 },
+  usedChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 99 },
+  usedChipText: { fontSize: 9, fontFamily: 'Inter_700Bold' },
+
+  assignedRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 10, borderWidth: 1, padding: 10 },
+  assignedAvatar: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
+  assignedAvatarLetter: { color: '#fff', fontSize: 13, fontFamily: 'Inter_700Bold' },
+  assignedLabel: { fontSize: 9, fontFamily: 'Inter_400Regular' },
+  assignedName: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+
+  keyActions: { flexDirection: 'row', gap: 8 },
+  keyActionBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, paddingVertical: 9 },
+  keyActionText: { fontSize: 12, fontFamily: 'Inter_700Bold' },
+  keyActionIconBtn: { width: 38, height: 38, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+
+  empty: { borderRadius: 16, padding: 40, borderWidth: 1, alignItems: 'center', gap: 8 },
+  emptyIcon: { width: 60, height: 60, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  emptyText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  emptySub: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
+  newKeySheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, gap: 16, alignItems: 'center' },
+  celebRing: { width: 90, height: 90, borderRadius: 45, borderWidth: 2, borderColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+  celebGrad: { width: 74, height: 74, borderRadius: 37, justifyContent: 'center', alignItems: 'center' },
+  celebTitle: { color: '#fff', fontSize: 26, fontFamily: 'Inter_700Bold' },
+  celebRole: { fontSize: 14, fontFamily: 'Inter_400Regular' },
+  codeReveal: { borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 24, paddingVertical: 18, alignSelf: 'stretch', justifyContent: 'center' },
+  codeRevealText: { color: '#fff', fontSize: 30, fontFamily: 'Inter_700Bold', letterSpacing: 4 },
+  celebNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 12, borderWidth: 1, padding: 12, alignSelf: 'stretch' },
+  celebNoteText: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontFamily: 'Inter_400Regular', flex: 1, lineHeight: 18 },
+  celebDoneBtn: { borderRadius: 14, paddingVertical: 14, paddingHorizontal: 60 },
+  celebDoneText: { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
 });
