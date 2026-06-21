@@ -193,9 +193,27 @@ function seedHouseVisits(): HouseVisit[] {
   return visits;
 }
 
+function normalizeFromRTDB(val: any): any {
+  if (val === null || val === undefined) return val;
+  if (Array.isArray(val)) return val.map(normalizeFromRTDB);
+  if (typeof val === 'object') {
+    const keys = Object.keys(val);
+    const allNumeric = keys.length > 0 && keys.every(k => /^\d+$/.test(k));
+    if (allNumeric) {
+      return keys
+        .sort((a, b) => Number(a) - Number(b))
+        .map(k => normalizeFromRTDB(val[k]));
+    }
+    const out: any = {};
+    for (const k of keys) out[k] = normalizeFromRTDB(val[k]);
+    return out;
+  }
+  return val;
+}
+
 function toArray<T>(val: any): T[] {
   if (!val) return [];
-  return Object.values(val) as T[];
+  return (Object.values(val) as any[]).map(normalizeFromRTDB) as T[];
 }
 
 function toMap<T extends { id: string }>(arr: T[]): Record<string, T> {
