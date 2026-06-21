@@ -372,8 +372,8 @@ export default function AdminManagement() {
             <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
               <View style={styles.wardStatRow}>
                 {[
-                  { label: 'Houses', value: selectedWard.totalHouses, icon: 'home', grad: ['#4F46E5', '#7C3AED'] as const },
-                  { label: 'Workers', value: selectedWard.assignedWorkers.length, icon: 'user-check', grad: ['#10B981', '#059669'] as const },
+                  { label: 'Registered Houses', value: houses.filter(h => h.wardId === selectedWard.id).length, icon: 'home', grad: ['#4F46E5', '#7C3AED'] as const },
+                  { label: 'Assigned Workers', value: selectedWard.assignedWorkers.length, icon: 'user-check', grad: ['#10B981', '#059669'] as const },
                 ].map(s => (
                   <LinearGradient key={s.label} colors={s.grad} style={styles.wardStatCard}>
                     <Feather name={s.icon as any} size={20} color="#fff" />
