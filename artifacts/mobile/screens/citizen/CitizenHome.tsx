@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ComplaintCard } from '@/components/ComplaintCard';
 import { NoticeCard } from '@/components/NoticeCard';
@@ -89,7 +89,7 @@ export default function CitizenHome() {
             </>
           )}
 
-          <TouchableOpacity style={styles.announceBannerWrap} activeOpacity={0.85} onPress={() => {}}>
+          <TouchableOpacity style={styles.announceBannerWrap} activeOpacity={0.85} onPress={() => Linking.openURL('tel:0618400000')}>
             <LinearGradient colors={['#0D2A6E', '#1264E8']} style={styles.announceBanner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
               <View style={styles.bannerIconWrap}>
                 <Feather name="phone" size={18} color="#FFFFFF" />
