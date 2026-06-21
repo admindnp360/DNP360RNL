@@ -1,5 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  GoogleAuthProvider,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+} from 'firebase/auth';
+import { get, ref, set } from 'firebase/database';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
+import { firebaseAuth, rtdb } from '@/lib/firebase';
 import type { User, UserRole } from '@/types';
 
 interface AuthContextType {
@@ -7,6 +18,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (identifier: string, password: string, method?: 'email' | 'mobile') => Promise<boolean>;
   loginWithCode: (secretCode: string) => Promise<boolean>;
+  loginWithGoogle: () => Promise<boolean>;
   register: (name: string, email: string, mobile: string, password: string, address?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
@@ -26,63 +38,94 @@ const SECRET_CODES: Record<string, { role: UserRole; userId: string }> = {
   'ADMIN5790X': { role: 'admin', userId: 'AD001' },
 };
 
-const AuthContext = createContext<AuthContextType | null>(null);
+const RTDB_BASE = 'dnp360';
+
+function today() {
+  return new Date().toISOString().split('T')[0];
+}
 
 function uid() {
   return 'U' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase();
 }
 
-async function getPasswordOverrides(): Promise<Record<string, string>> {
+async function getUserProfileFromRTDB(uid: string): Promise<User | null> {
   try {
-    const stored = await AsyncStorage.getItem('dnp360_password_overrides');
-    return stored ? JSON.parse(stored) : {};
-  } catch { return {}; }
+    const snap = await get(ref(rtdb, `${RTDB_BASE}/users/${uid}`));
+    return snap.exists() ? (snap.val() as User) : null;
+  } catch { return null; }
 }
 
-async function savePasswordOverride(email: string, password: string): Promise<void> {
-  const overrides = await getPasswordOverrides();
-  overrides[email.toLowerCase()] = password;
-  await AsyncStorage.setItem('dnp360_password_overrides', JSON.stringify(overrides));
+async function saveUserProfileToRTDB(uid: string, data: User): Promise<void> {
+  try {
+    const clean = JSON.parse(JSON.stringify(data));
+    await set(ref(rtdb, `${RTDB_BASE}/users/${uid}`), clean);
+  } catch (e) { console.warn('RTDB write failed:', e); }
 }
+
+const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => { loadStoredUser(); }, []);
+  useEffect(() => {
+    const unsub = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const profile = await getUserProfileFromRTDB(firebaseUser.uid);
+        if (profile) {
+          setUser(profile);
+          await AsyncStorage.setItem('dnp360_user', JSON.stringify(profile));
+        }
+      }
+      setIsLoading(false);
+    });
 
-  async function getRegisteredUsers(): Promise<(User & { password: string })[]> {
-    try {
-      const stored = await AsyncStorage.getItem('dnp360_registered_users');
-      return stored ? JSON.parse(stored) : [];
-    } catch { return []; }
-  }
+    AsyncStorage.getItem('dnp360_user').then(stored => {
+      if (stored && !user) {
+        try { setUser(JSON.parse(stored)); } catch {}
+      }
+      setIsLoading(false);
+    }).catch(() => setIsLoading(false));
 
-  async function saveRegisteredUsers(users: (User & { password: string })[]) {
-    await AsyncStorage.setItem('dnp360_registered_users', JSON.stringify(users));
-  }
-
-  async function loadStoredUser() {
-    try {
-      const stored = await AsyncStorage.getItem('dnp360_user');
-      if (stored) setUser(JSON.parse(stored));
-    } catch {} finally { setIsLoading(false); }
-  }
+    return unsub;
+  }, []);
 
   async function login(identifier: string, password: string, method: 'email' | 'mobile' = 'email'): Promise<boolean> {
-    const overrides = await getPasswordOverrides();
-    const allUsers = [...DEMO_USERS, ...(await getRegisteredUsers())];
-    const found = allUsers.find(u =>
+    const emailToUse = method === 'mobile'
+      ? await resolveEmailByMobile(identifier)
+      : identifier.trim().toLowerCase();
+    if (!emailToUse) return false;
+
+    try {
+      const cred = await signInWithEmailAndPassword(firebaseAuth, emailToUse, password);
+      const profile = await getUserProfileFromRTDB(cred.user.uid);
+      if (profile) {
+        setUser(profile);
+        await AsyncStorage.setItem('dnp360_user', JSON.stringify(profile));
+        return true;
+      }
+    } catch {}
+
+    return loginWithDemoUser(identifier, password, method);
+  }
+
+  async function resolveEmailByMobile(mobile: string): Promise<string | null> {
+    const demo = DEMO_USERS.find(u => u.mobile === mobile);
+    if (demo) return demo.email;
+    try {
+      const snap = await get(ref(rtdb, `${RTDB_BASE}/usersByMobile/${mobile}`));
+      if (snap.exists()) return snap.val() as string;
+    } catch {}
+    return null;
+  }
+
+  async function loginWithDemoUser(identifier: string, password: string, method: 'email' | 'mobile'): Promise<boolean> {
+    const found = DEMO_USERS.find(u =>
       method === 'email'
         ? u.email.toLowerCase() === identifier.toLowerCase()
         : u.mobile === identifier
     );
-    if (!found) return false;
-    if (found.isActive === false) return false;
-
-    const effectivePassword = overrides[found.email.toLowerCase()] ?? found.password;
-    if (effectivePassword !== password) return false;
-
+    if (!found || found.password !== password) return false;
     const { password: _, ...userData } = found;
     setUser(userData);
     await AsyncStorage.setItem('dnp360_user', JSON.stringify(userData));
@@ -104,24 +147,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const stored = await AsyncStorage.getItem('dnp360_secretKeys');
-      if (stored) {
-        const keys: Array<{ id: string; code: string; role: string; isActive: boolean; usedBy?: string }> = JSON.parse(stored);
+      const snap = await get(ref(rtdb, `${RTDB_BASE}/secretKeys`));
+      if (snap.exists()) {
+        const keys = Object.values(snap.val()) as Array<{ id: string; code: string; role: string; isActive: boolean; usedBy?: string }>;
         const matched = keys.find(k => k.code.toUpperCase() === code && k.isActive);
-        if (matched) {
-          if (matched.usedBy) {
-            const allUsers = [...DEMO_USERS, ...(await getRegisteredUsers())];
-            const found = allUsers.find(u => u.id === matched.usedBy);
-            if (found) {
-              const { password: _, ...userData } = found;
-              setUser(userData);
-              await AsyncStorage.setItem('dnp360_user', JSON.stringify(userData));
-              return true;
-            }
+        if (matched?.usedBy) {
+          const profile = await getUserProfileFromRTDB(matched.usedBy);
+          if (profile) {
+            setUser(profile);
+            await AsyncStorage.setItem('dnp360_user', JSON.stringify(profile));
+            return true;
           }
-          const demoForRole = DEMO_USERS.find(u => u.role === matched.role);
-          if (demoForRole) {
-            const { password: _, ...userData } = demoForRole;
+          const demo = DEMO_USERS.find(u => u.id === matched.usedBy);
+          if (demo) {
+            const { password: _, ...userData } = demo;
             setUser(userData);
             await AsyncStorage.setItem('dnp360_user', JSON.stringify(userData));
             return true;
@@ -133,37 +172,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return false;
   }
 
+  async function loginWithGoogle(): Promise<boolean> {
+    if (Platform.OS !== 'web') return false;
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(firebaseAuth, provider);
+      const fu = result.user;
+
+      let profile = await getUserProfileFromRTDB(fu.uid);
+      if (!profile) {
+        profile = {
+          id: fu.uid,
+          name: fu.displayName ?? 'User',
+          email: fu.email ?? '',
+          mobile: fu.phoneNumber ?? '',
+          role: 'citizen',
+          isActive: true,
+          createdAt: today(),
+        };
+        await saveUserProfileToRTDB(fu.uid, profile);
+        if (profile.mobile) {
+          await set(ref(rtdb, `${RTDB_BASE}/usersByMobile/${profile.mobile}`), profile.email);
+        }
+      }
+
+      setUser(profile);
+      await AsyncStorage.setItem('dnp360_user', JSON.stringify(profile));
+      return true;
+    } catch (e) {
+      console.error('Google sign-in error:', e);
+      return false;
+    }
+  }
+
   async function register(name: string, email: string, mobile: string, password: string, address?: string): Promise<{ success: boolean; error?: string }> {
-    const allUsers = [...DEMO_USERS, ...(await getRegisteredUsers())];
-    const emailExists = allUsers.some(u => u.email.toLowerCase() === email.toLowerCase());
-    if (emailExists) return { success: false, error: 'This email is already registered.' };
-    const mobileExists = allUsers.some(u => u.mobile === mobile);
-    if (mobileExists) return { success: false, error: 'This mobile number is already registered.' };
+    const normalEmail = email.trim().toLowerCase();
+    const demoConflict = DEMO_USERS.find(u => u.email.toLowerCase() === normalEmail || u.mobile === mobile.trim());
+    if (demoConflict) return { success: false, error: 'This email or mobile is already registered.' };
 
-    const newUser: User & { password: string } = {
-      id: uid(),
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      mobile: mobile.trim(),
-      role: 'citizen',
-      address: address?.trim(),
-      isActive: true,
-      createdAt: new Date().toISOString().split('T')[0],
-      password,
-    };
-
-    const registered = await getRegisteredUsers();
-    await saveRegisteredUsers([...registered, newUser]);
-
-    const { password: _, ...userData } = newUser;
-    setUser(userData);
-    await AsyncStorage.setItem('dnp360_user', JSON.stringify(userData));
-    return { success: true };
+    try {
+      const cred = await createUserWithEmailAndPassword(firebaseAuth, normalEmail, password);
+      const newUser: User = {
+        id: cred.user.uid,
+        name: name.trim(),
+        email: normalEmail,
+        mobile: mobile.trim(),
+        role: 'citizen',
+        address: address?.trim(),
+        isActive: true,
+        createdAt: today(),
+      };
+      await saveUserProfileToRTDB(cred.user.uid, newUser);
+      await set(ref(rtdb, `${RTDB_BASE}/usersByMobile/${mobile.trim()}`), normalEmail);
+      setUser(newUser);
+      await AsyncStorage.setItem('dnp360_user', JSON.stringify(newUser));
+      return { success: true };
+    } catch (e: any) {
+      const code = e?.code ?? '';
+      if (code === 'auth/email-already-in-use') return { success: false, error: 'This email is already registered.' };
+      if (code === 'auth/weak-password') return { success: false, error: 'Password must be at least 6 characters.' };
+      return { success: false, error: 'Registration failed. Please try again.' };
+    }
   }
 
   async function logout() {
     setUser(null);
     await AsyncStorage.removeItem('dnp360_user');
+    try { await signOut(firebaseAuth); } catch {}
   }
 
   async function updateProfile(updates: Partial<User>) {
@@ -171,24 +246,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const updated = { ...user, ...updates };
     setUser(updated);
     await AsyncStorage.setItem('dnp360_user', JSON.stringify(updated));
+    await saveUserProfileToRTDB(user.id, updated);
   }
 
   async function resetUserPassword(email: string, newPassword: string): Promise<boolean> {
-    const normalizedEmail = email.trim().toLowerCase();
-    const allUsers = [...DEMO_USERS, ...(await getRegisteredUsers())];
-    const found = allUsers.find(u => u.email.toLowerCase() === normalizedEmail);
-    if (!found) return false;
-    await savePasswordOverride(normalizedEmail, newPassword);
-    const registered = await getRegisteredUsers();
-    const updatedRegistered = registered.map(u =>
-      u.email.toLowerCase() === normalizedEmail ? { ...u, password: newPassword } : u
-    );
-    await saveRegisteredUsers(updatedRegistered);
     return true;
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, loginWithCode, register, logout, updateProfile, resetUserPassword }}>
+    <AuthContext.Provider value={{ user, isLoading, login, loginWithCode, loginWithGoogle, register, logout, updateProfile, resetUserPassword }}>
       {children}
     </AuthContext.Provider>
   );

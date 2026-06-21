@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { get, ref, set } from 'firebase/database';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { rtdb } from '@/lib/firebase';
 import type {
   Attendance, Complaint, ComplaintCategory, ComplaintStatus,
   House, HouseVisit, Notice, PasswordResetRequest,
@@ -47,7 +49,8 @@ interface AppContextType {
   isTodayAttendanceMarked: (workerId: string) => boolean;
 }
 
-const STORAGE_VERSION = '3';
+const STORAGE_VERSION = '4';
+const RTDB_BASE = 'dnp360';
 
 function uid() {
   return Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase();
@@ -67,6 +70,10 @@ function genSecretKey(role: SecretKey['role']): string {
   const digits = Math.floor(1000 + Math.random() * 9000);
   const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26));
   return `${prefix}${digits}${letter}`;
+}
+
+function clean<T>(data: T): T {
+  return JSON.parse(JSON.stringify(data));
 }
 
 const d = (daysAgo: number) => {
@@ -96,19 +103,19 @@ const SEED_HOUSES: House[] = [
 ];
 
 const SEED_NOTICES: Notice[] = [
-  { id: 'N001', title: 'Property Tax Due', content: 'All property holders are requested to pay their annual property tax before 31st March 2025 to avoid penalty. Payment can be made at Nagar Parishad office or online portal.', type: 'notice', priority: 'high', createdAt: '2025-01-10', isActive: true },
-  { id: 'N002', title: 'Water Supply Interruption', content: 'Due to maintenance work, water supply will be interrupted in Ward 3, 4, and 5 on 25th January from 9 AM to 5 PM. Please store water accordingly.', type: 'alert', priority: 'high', createdAt: '2025-01-20', isActive: true },
-  { id: 'N003', title: 'Cleanliness Drive - Swachh Bharat', content: 'Nagar Parishad Daudnagar is organizing a Swachh Bharat cleanliness drive on 26th January. All citizens are invited to participate.', type: 'announcement', priority: 'medium', createdAt: '2025-01-18', isActive: true },
-  { id: 'N004', title: 'Ward Committee Meeting', content: 'Monthly ward committee meeting will be held on 28th January at 11 AM in the Municipal Hall. All ward members are requested to attend.', type: 'notice', priority: 'low', createdAt: '2025-01-15', isActive: true },
+  { id: 'N001', title: 'Property Tax Due', content: 'All property holders are requested to pay their annual property tax before 31st March 2025 to avoid penalty.', type: 'notice', priority: 'high', createdAt: '2025-01-10', isActive: true },
+  { id: 'N002', title: 'Water Supply Interruption', content: 'Due to maintenance work, water supply will be interrupted in Ward 3, 4, and 5 on 25th January from 9 AM to 5 PM.', type: 'alert', priority: 'high', createdAt: '2025-01-20', isActive: true },
+  { id: 'N003', title: 'Cleanliness Drive - Swachh Bharat', content: 'Nagar Parishad Daudnagar is organizing a Swachh Bharat cleanliness drive on 26th January.', type: 'announcement', priority: 'medium', createdAt: '2025-01-18', isActive: true },
+  { id: 'N004', title: 'Ward Committee Meeting', content: 'Monthly ward committee meeting will be held on 28th January at 11 AM in the Municipal Hall.', type: 'notice', priority: 'low', createdAt: '2025-01-15', isActive: true },
 ];
 
 const SEED_COMPLAINTS: Complaint[] = [
-  { id: 'CPL001', citizenId: 'C001', citizenName: 'Rahul Kumar', category: 'garbage_collection', description: 'Garbage has not been collected from our street for 3 days. The area is smelling bad and causing health hazard.', location: 'Ward 5, Near Post Office, Daudnagar', status: 'submitted', createdAt: d(2), updatedAt: d(2), wardId: 'W1', wardNumber: '1' },
-  { id: 'CPL002', citizenId: 'C001', citizenName: 'Rahul Kumar', category: 'drainage', description: 'Open drain near our house is blocked and overflowing during rain. Causing mosquito breeding.', location: 'Ward 5, Ram Nagar, Daudnagar', status: 'assigned', createdAt: d(5), updatedAt: d(3), assignedTo: 'SK001', assignedToName: 'Amit Kumar', wardId: 'W1', wardNumber: '1' },
-  { id: 'CPL003', citizenId: 'C001', citizenName: 'Rahul Kumar', category: 'street_light', description: 'Street light near our house is not working for a week. The area becomes very dark at night.', location: 'Ward 5, Main Road, Daudnagar', status: 'resolved', createdAt: d(15), updatedAt: d(8), wardId: 'W1', wardNumber: '1' },
-  { id: 'CPL004', citizenId: 'C002', citizenName: 'Priya Singh', category: 'water_supply', description: 'No water supply for 2 days in our area. We are facing severe water crisis.', location: 'Ward 12, Civil Line, Daudnagar', status: 'in_progress', createdAt: d(1), updatedAt: d(0), assignedTo: 'SK001', assignedToName: 'Amit Kumar', wardId: 'W12', wardNumber: '12' },
-  { id: 'CPL005', citizenId: 'C003', citizenName: 'Suresh Yadav', category: 'road_damage', description: 'Large pothole on main road causing accidents. Two-wheelers have already fallen.', location: 'Ward 3, Station Road, Daudnagar', status: 'submitted', createdAt: d(0), updatedAt: d(0), wardId: 'W3', wardNumber: '3' },
-  { id: 'CPL006', citizenId: 'C004', citizenName: 'Meena Devi', category: 'cleanliness', description: 'Public park is very dirty. Garbage piled up near the gate. Children cannot play.', location: 'Ward 2, Central Park, Daudnagar', status: 'assigned', createdAt: d(3), updatedAt: d(2), wardId: 'W2', wardNumber: '2' },
+  { id: 'CPL001', citizenId: 'C001', citizenName: 'Rahul Kumar', category: 'garbage_collection', description: 'Garbage has not been collected from our street for 3 days.', location: 'Ward 5, Near Post Office, Daudnagar', status: 'submitted', createdAt: d(2), updatedAt: d(2), wardId: 'W1', wardNumber: '1' },
+  { id: 'CPL002', citizenId: 'C001', citizenName: 'Rahul Kumar', category: 'drainage', description: 'Open drain near our house is blocked and overflowing during rain.', location: 'Ward 5, Ram Nagar, Daudnagar', status: 'assigned', createdAt: d(5), updatedAt: d(3), assignedTo: 'SK001', assignedToName: 'Amit Kumar', wardId: 'W1', wardNumber: '1' },
+  { id: 'CPL003', citizenId: 'C001', citizenName: 'Rahul Kumar', category: 'street_light', description: 'Street light near our house is not working for a week.', location: 'Ward 5, Main Road, Daudnagar', status: 'resolved', createdAt: d(15), updatedAt: d(8), wardId: 'W1', wardNumber: '1' },
+  { id: 'CPL004', citizenId: 'C002', citizenName: 'Priya Singh', category: 'water_supply', description: 'No water supply for 2 days in our area.', location: 'Ward 12, Civil Line, Daudnagar', status: 'in_progress', createdAt: d(1), updatedAt: d(0), assignedTo: 'SK001', assignedToName: 'Amit Kumar', wardId: 'W12', wardNumber: '12' },
+  { id: 'CPL005', citizenId: 'C003', citizenName: 'Suresh Yadav', category: 'road_damage', description: 'Large pothole on main road causing accidents.', location: 'Ward 3, Station Road, Daudnagar', status: 'submitted', createdAt: d(0), updatedAt: d(0), wardId: 'W3', wardNumber: '3' },
+  { id: 'CPL006', citizenId: 'C004', citizenName: 'Meena Devi', category: 'cleanliness', description: 'Public park is very dirty. Garbage piled up near the gate.', location: 'Ward 2, Central Park, Daudnagar', status: 'assigned', createdAt: d(3), updatedAt: d(2), wardId: 'W2', wardNumber: '2' },
 ];
 
 const SEED_USERS: User[] = [
@@ -143,8 +150,7 @@ function seedAttendance(): Attendance[] {
   const records: Attendance[] = [];
   for (let i = 30; i >= 0; i--) {
     const date = d(i);
-    const dayOfWeek = new Date(date).getDay();
-    if (dayOfWeek === 0) continue;
+    if (new Date(date).getDay() === 0) continue;
     records.push({
       id: `ATT${i}`,
       workerId: 'SK001',
@@ -187,42 +193,72 @@ function seedHouseVisits(): HouseVisit[] {
   return visits;
 }
 
+function toArray<T>(val: any): T[] {
+  if (!val) return [];
+  return Object.values(val) as T[];
+}
+
+function toMap<T extends { id: string }>(arr: T[]): Record<string, T> {
+  const map: Record<string, T> = {};
+  arr.forEach(item => { map[item.id] = item; });
+  return map;
+}
+
+async function rtdbLoad<T extends { id: string }>(path: string, seed: T[]): Promise<T[]> {
+  try {
+    const snap = await get(ref(rtdb, `${RTDB_BASE}/${path}`));
+    if (snap.exists()) return toArray<T>(snap.val());
+    await set(ref(rtdb, `${RTDB_BASE}/${path}`), clean(toMap(seed)));
+    return seed;
+  } catch {
+    const stored = await AsyncStorage.getItem(`dnp360_${path}`).catch(() => null);
+    return stored ? JSON.parse(stored) : seed;
+  }
+}
+
+async function rtdbLoadObj<T>(path: string, seed: T): Promise<T> {
+  try {
+    const snap = await get(ref(rtdb, `${RTDB_BASE}/${path}`));
+    if (snap.exists()) return snap.val() as T;
+    await set(ref(rtdb, `${RTDB_BASE}/${path}`), clean(seed));
+    return seed;
+  } catch {
+    const stored = await AsyncStorage.getItem(`dnp360_${path}`).catch(() => null);
+    return stored ? JSON.parse(stored) : seed;
+  }
+}
+
+async function rtdbSave<T extends { id: string }>(path: string, data: T[]): Promise<void> {
+  try {
+    await set(ref(rtdb, `${RTDB_BASE}/${path}`), clean(toMap(data)));
+  } catch {
+    await AsyncStorage.setItem(`dnp360_${path}`, JSON.stringify(data)).catch(() => {});
+  }
+}
+
+async function rtdbSaveObj<T>(path: string, data: T): Promise<void> {
+  try {
+    await set(ref(rtdb, `${RTDB_BASE}/${path}`), clean(data));
+  } catch {
+    await AsyncStorage.setItem(`dnp360_${path}`, JSON.stringify(data)).catch(() => {});
+  }
+}
+
+async function checkVersion(): Promise<boolean> {
+  try {
+    const snap = await get(ref(rtdb, `${RTDB_BASE}/meta/version`));
+    if (snap.exists() && snap.val() === STORAGE_VERSION) return true;
+    await set(ref(rtdb, `${RTDB_BASE}/meta/version`), STORAGE_VERSION);
+    return false;
+  } catch {
+    const v = await AsyncStorage.getItem('dnp360_version').catch(() => null);
+    if (v === STORAGE_VERSION) return true;
+    await AsyncStorage.setItem('dnp360_version', STORAGE_VERSION).catch(() => {});
+    return false;
+  }
+}
+
 const AppContext = createContext<AppContextType | null>(null);
-
-async function checkAndClearVersion() {
-  const version = await AsyncStorage.getItem('dnp360_version');
-  if (version !== STORAGE_VERSION) {
-    const keys = ['complaints', 'houses', 'wards', 'notices', 'attendance', 'houseVisits', 'users', 'secretKeys', 'support', 'resetRequests'];
-    await Promise.all(keys.map(k => AsyncStorage.removeItem(`dnp360_${k}`)));
-    await AsyncStorage.setItem('dnp360_version', STORAGE_VERSION);
-  }
-}
-
-async function load<T>(key: string, seed: T[]): Promise<T[]> {
-  try {
-    const stored = await AsyncStorage.getItem(`dnp360_${key}`);
-    if (stored) return JSON.parse(stored);
-    await AsyncStorage.setItem(`dnp360_${key}`, JSON.stringify(seed));
-    return seed;
-  } catch {
-    return seed;
-  }
-}
-
-async function loadObj<T>(key: string, seed: T): Promise<T> {
-  try {
-    const stored = await AsyncStorage.getItem(`dnp360_${key}`);
-    if (stored) return JSON.parse(stored);
-    await AsyncStorage.setItem(`dnp360_${key}`, JSON.stringify(seed));
-    return seed;
-  } catch {
-    return seed;
-  }
-}
-
-async function save<T>(key: string, data: T): Promise<void> {
-  await AsyncStorage.setItem(`dnp360_${key}`, JSON.stringify(data));
-}
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
@@ -238,18 +274,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      await checkAndClearVersion();
+      await checkVersion();
       const [c, h, w, n, a, v, u, k, s, r] = await Promise.all([
-        load<Complaint>('complaints', SEED_COMPLAINTS),
-        load<House>('houses', SEED_HOUSES),
-        load<Ward>('wards', SEED_WARDS),
-        load<Notice>('notices', SEED_NOTICES),
-        load<Attendance>('attendance', seedAttendance()),
-        load<HouseVisit>('houseVisits', seedHouseVisits()),
-        load<User>('users', SEED_USERS),
-        load<SecretKey>('secretKeys', SEED_KEYS),
-        loadObj<SupportDetails>('support', DEFAULT_SUPPORT),
-        load<PasswordResetRequest>('resetRequests', []),
+        rtdbLoad<Complaint>('complaints', SEED_COMPLAINTS),
+        rtdbLoad<House>('houses', SEED_HOUSES),
+        rtdbLoad<Ward>('wards', SEED_WARDS),
+        rtdbLoad<Notice>('notices', SEED_NOTICES),
+        rtdbLoad<Attendance>('attendance', seedAttendance()),
+        rtdbLoad<HouseVisit>('houseVisits', seedHouseVisits()),
+        rtdbLoad<User>('users', SEED_USERS),
+        rtdbLoad<SecretKey>('secretKeys', SEED_KEYS),
+        rtdbLoadObj<SupportDetails>('support', DEFAULT_SUPPORT),
+        rtdbLoad<PasswordResetRequest>('passwordResetRequests', []),
       ]);
       setComplaints(c); setHouses(h); setWards(w); setNotices(n);
       setAttendance(a); setHouseVisits(v); setUsers(u); setSecretKeys(k);
@@ -261,18 +297,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const now = today();
     const item: Complaint = { ...c, id: uid(), createdAt: now, updatedAt: now };
     const updated = [item, ...complaints];
-    setComplaints(updated); await save('complaints', updated);
+    setComplaints(updated); await rtdbSave('complaints', updated);
   }
 
   async function updateComplaint(id: string, updates: Partial<Complaint>) {
     const updated = complaints.map(c => c.id === id ? { ...c, ...updates, updatedAt: today() } : c);
-    setComplaints(updated); await save('complaints', updated);
+    setComplaints(updated); await rtdbSave('complaints', updated);
   }
 
   async function addHouseVisit(visit: Omit<HouseVisit, 'id'>) {
     const item: HouseVisit = { ...visit, id: uid() };
     const updated = [item, ...houseVisits];
-    setHouseVisits(updated); await save('houseVisits', updated);
+    setHouseVisits(updated); await rtdbSave('houseVisits', updated);
   }
 
   async function markAttendance(workerId: string, method: 'qr' | 'manual' = 'qr'): Promise<boolean> {
@@ -280,121 +316,121 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (attendance.some(a => a.workerId === workerId && a.date === todayStr)) return false;
     const item: Attendance = { id: uid(), workerId, date: todayStr, status: 'present', checkInTime: nowTime(), method };
     const updated = [item, ...attendance];
-    setAttendance(updated); await save('attendance', updated);
+    setAttendance(updated); await rtdbSave('attendance', updated);
     return true;
   }
 
   async function addHouse(h: Omit<House, 'id'>) {
     const item: House = { ...h, id: uid() };
     const updated = [...houses, item];
-    setHouses(updated); await save('houses', updated);
+    setHouses(updated); await rtdbSave('houses', updated);
   }
 
   async function addMultipleHouses(newHouses: Omit<House, 'id'>[]) {
     const items: House[] = newHouses.map(h => ({ ...h, id: uid() }));
     const updated = [...houses, ...items];
-    setHouses(updated); await save('houses', updated);
+    setHouses(updated); await rtdbSave('houses', updated);
   }
 
   async function updateHouse(id: string, updates: Partial<House>) {
     const updated = houses.map(h => h.id === id ? { ...h, ...updates } : h);
-    setHouses(updated); await save('houses', updated);
+    setHouses(updated); await rtdbSave('houses', updated);
   }
 
   async function deleteHouse(id: string) {
     const updated = houses.filter(h => h.id !== id);
-    setHouses(updated); await save('houses', updated);
+    setHouses(updated); await rtdbSave('houses', updated);
   }
 
   async function addWard(w: Omit<Ward, 'id'>) {
     const item: Ward = { ...w, id: uid() };
     const updated = [...wards, item];
-    setWards(updated); await save('wards', updated);
+    setWards(updated); await rtdbSave('wards', updated);
   }
 
   async function updateWard(id: string, updates: Partial<Ward>) {
     const updated = wards.map(w => w.id === id ? { ...w, ...updates } : w);
-    setWards(updated); await save('wards', updated);
+    setWards(updated); await rtdbSave('wards', updated);
   }
 
   async function assignWorkerToWard(wardId: string, workerId: string) {
-    const updated = wards.map(w => {
+    const updatedWards = wards.map(w => {
       if (w.id === wardId) {
-        const workers = w.assignedWorkers.includes(workerId)
-          ? w.assignedWorkers
-          : [...w.assignedWorkers, workerId];
+        const workers = w.assignedWorkers.includes(workerId) ? w.assignedWorkers : [...w.assignedWorkers, workerId];
         return { ...w, assignedWorkers: workers };
       }
       return w;
     });
-    setWards(updated); await save('wards', updated);
-    const userUpdated = users.map(u => u.id === workerId ? { ...u, wardId } : u);
-    setUsers(userUpdated); await save('users', userUpdated);
+    setWards(updatedWards); await rtdbSave('wards', updatedWards);
+    const updatedUsers = users.map(u => u.id === workerId ? { ...u, wardId } : u);
+    setUsers(updatedUsers); await rtdbSave('users', updatedUsers);
   }
 
   async function addNotice(n: Omit<Notice, 'id' | 'createdAt'>) {
     const item: Notice = { ...n, id: uid(), createdAt: today() };
     const updated = [item, ...notices];
-    setNotices(updated); await save('notices', updated);
+    setNotices(updated); await rtdbSave('notices', updated);
   }
 
   async function updateNotice(id: string, updates: Partial<Notice>) {
     const updated = notices.map(n => n.id === id ? { ...n, ...updates } : n);
-    setNotices(updated); await save('notices', updated);
+    setNotices(updated); await rtdbSave('notices', updated);
   }
 
   async function deleteNotice(id: string) {
     const updated = notices.filter(n => n.id !== id);
-    setNotices(updated); await save('notices', updated);
+    setNotices(updated); await rtdbSave('notices', updated);
   }
 
   async function addUser(u: User) {
     const updated = [...users, u];
-    setUsers(updated); await save('users', updated);
+    setUsers(updated); await rtdbSave('users', updated);
   }
 
   async function updateUser(id: string, updates: Partial<User>) {
     const updated = users.map(u => u.id === id ? { ...u, ...updates } : u);
-    setUsers(updated); await save('users', updated);
+    setUsers(updated); await rtdbSave('users', updated);
   }
 
   async function deleteUser(id: string) {
     const updated = users.filter(u => u.id !== id);
-    setUsers(updated); await save('users', updated);
+    setUsers(updated); await rtdbSave('users', updated);
   }
 
   async function addSecretKey(role: SecretKey['role']): Promise<SecretKey> {
     const code = genSecretKey(role);
     const item: SecretKey = { id: uid(), code, role, isActive: true, createdAt: today() };
     const updated = [...secretKeys, item];
-    setSecretKeys(updated); await save('secretKeys', updated);
+    setSecretKeys(updated); await rtdbSave('secretKeys', updated);
     return item;
   }
 
   async function toggleSecretKey(id: string) {
     const updated = secretKeys.map(k => k.id === id ? { ...k, isActive: !k.isActive } : k);
-    setSecretKeys(updated); await save('secretKeys', updated);
+    setSecretKeys(updated); await rtdbSave('secretKeys', updated);
   }
 
   async function deleteSecretKey(id: string) {
     const updated = secretKeys.filter(k => k.id !== id);
-    setSecretKeys(updated); await save('secretKeys', updated);
+    setSecretKeys(updated); await rtdbSave('secretKeys', updated);
   }
 
   async function updateSupportDetails(updates: Partial<SupportDetails>) {
     const updated = { ...supportDetails, ...updates };
-    setSupportDetails(updated); await save('support', updated);
+    setSupportDetails(updated); await rtdbSaveObj('support', updated);
   }
 
   async function addPasswordResetRequest(email: string, name: string) {
     const item: PasswordResetRequest = { id: uid(), email, name, requestedAt: today(), status: 'pending' };
     const updated = [item, ...passwordResetRequests];
-    setPasswordResetRequests(updated); await save('resetRequests', updated);
+    setPasswordResetRequests(updated); await rtdbSave('passwordResetRequests', updated);
   }
 
   async function updatePasswordResetRequest(id: string, status: 'approved' | 'rejected', adminNote?: string) {
-    const updated = passwordResetRequests.map(r => r.id === id ? { ...r, status, ...(adminNote ? { adminNote } : {}) } : r);
-    setPasswordResetRequests(updated); await save('resetRequests', updated);
+    const updated = passwordResetRequests.map(r =>
+      r.id === id ? { ...r, status, ...(adminNote ? { adminNote } : {}) } : r
+    );
+    setPasswordResetRequests(updated); await rtdbSave('passwordResetRequests', updated);
   }
 
   const getHouseByRegistration = (regNum: string) =>
