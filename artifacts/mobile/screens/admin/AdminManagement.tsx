@@ -372,8 +372,8 @@ export default function AdminManagement() {
             <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
               <View style={styles.wardStatRow}>
                 {[
-                  { label: 'Registered Houses', value: houses.filter(h => h.wardId === selectedWard.id).length, icon: 'home', grad: ['#4F46E5', '#7C3AED'] as const },
-                  { label: 'Assigned Workers', value: selectedWard.assignedWorkers.length, icon: 'user-check', grad: ['#10B981', '#059669'] as const },
+                  { label: 'Registered', value: houses.filter(h => h.wardId === selectedWard.id).length, icon: 'home', grad: ['#4F46E5', '#7C3AED'] as const },
+                  { label: 'Workers', value: selectedWard.assignedWorkers.length, icon: 'user-check', grad: ['#10B981', '#059669'] as const },
                 ].map(s => (
                   <LinearGradient key={s.label} colors={s.grad} style={styles.wardStatCard}>
                     <Feather name={s.icon as any} size={20} color="#fff" />
@@ -382,6 +382,42 @@ export default function AdminManagement() {
                   </LinearGradient>
                 ))}
               </View>
+
+              {/* Registration Progress Bar */}
+              {(() => {
+                const registeredCount = houses.filter(h => h.wardId === selectedWard.id).length;
+                const totalCount = selectedWard.totalHouses;
+                const pct = totalCount > 0 ? Math.min(100, Math.round((registeredCount / totalCount) * 100)) : 0;
+                const remaining = Math.max(0, totalCount - registeredCount);
+                const barColor = pct >= 80 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#EF4444';
+                return (
+                  <View style={[styles.progressCard, { backgroundColor: '#0A0A2E10', borderColor: '#4F46E530' }]}>
+                    <View style={styles.progressHeader}>
+                      <View style={styles.progressLabelRow}>
+                        <Feather name="bar-chart-2" size={13} color="#4F46E5" />
+                        <Text style={styles.progressTitle}>Registration Coverage</Text>
+                      </View>
+                      <Text style={[styles.progressPct, { color: barColor }]}>{pct}%</Text>
+                    </View>
+                    <View style={styles.progressTrack}>
+                      <View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
+                    </View>
+                    <View style={styles.progressMeta}>
+                      <Text style={styles.progressSub}>
+                        <Text style={{ color: '#4F46E5', fontFamily: 'Inter_700Bold' }}>{registeredCount}</Text>
+                        {' registered of '}
+                        <Text style={{ color: '#6B7280', fontFamily: 'Inter_600SemiBold' }}>{totalCount}</Text>
+                        {' municipality total'}
+                      </Text>
+                      {remaining > 0 && (
+                        <View style={styles.remainingChip}>
+                          <Text style={styles.remainingText}>{remaining} pending</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                );
+              })()}
 
               <Text style={[styles.sectionLabel, { color: colors.text }]}>Assign Safai Karmi</Text>
               {safaiKarmis.map(sk => {
@@ -687,6 +723,18 @@ const styles = StyleSheet.create({
   submitBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },
   cancelBtn: { borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1 },
   cancelBtnText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
+
+  progressCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
+  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  progressLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  progressTitle: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#4F46E5' },
+  progressPct: { fontSize: 20, fontFamily: 'Inter_700Bold' },
+  progressTrack: { height: 10, borderRadius: 5, backgroundColor: '#E5E7EB', overflow: 'hidden' },
+  progressFill: { height: 10, borderRadius: 5 },
+  progressMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  progressSub: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6B7280', flex: 1 },
+  remainingChip: { backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 },
+  remainingText: { fontSize: 10, fontFamily: 'Inter_700Bold', color: '#D97706' },
 
   requestPreview: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1, padding: 14 },
   requestAvatar: { width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center' },
