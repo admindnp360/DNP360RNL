@@ -10,6 +10,7 @@ interface AuthContextType {
   register: (name: string, email: string, mobile: string, password: string, address?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
+  resetUserPassword: (email: string, newPassword: string) => Promise<boolean>;
 }
 
 const DEMO_USERS: (User & { password: string })[] = [
@@ -29,6 +30,19 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 function uid() {
   return 'U' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase();
+}
+
+async function getPasswordOverrides(): Promise<Record<string, string>> {
+  try {
+    const stored = await AsyncStorage.getItem('dnp360_password_overrides');
+    return stored ? JSON.parse(stored) : {};
+  } catch { return {}; }
+}
+
+async function savePasswordOverride(email: string, password: string): Promise<void> {
+  const overrides = await getPasswordOverrides();
+  overrides[email.toLowerCase()] = password;
+  await AsyncStorage.setItem('dnp360_password_overrides', JSON.stringify(overrides));
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -56,14 +70,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function login(identifier: string, password: string, method: 'email' | 'mobile' = 'email'): Promise<boolean> {
+    const overrides = await getPasswordOverrides();
     const allUsers = [...DEMO_USERS, ...(await getRegisteredUsers())];
     const found = allUsers.find(u =>
-      (method === 'email'
+      method === 'email'
         ? u.email.toLowerCase() === identifier.toLowerCase()
-        : u.mobile === identifier) && u.password === password
+        : u.mobile === identifier
     );
     if (!found) return false;
     if (found.isActive === false) return false;
+
+    const effectivePassword = overrides[found.email.toLowerCase()] ?? found.password;
+    if (effectivePassword !== password) return false;
+
     const { password: _, ...userData } = found;
     setUser(userData);
     await AsyncStorage.setItem('dnp360_user', JSON.stringify(userData));
@@ -73,7 +92,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function loginWithCode(secretCode: string): Promise<boolean> {
     const code = secretCode.toUpperCase().trim();
 
-    // 1. Check hardcoded demo codes
     const hardcoded = SECRET_CODES[code];
     if (hardcoded) {
       const found = DEMO_USERS.find(u => u.id === hardcoded.userId);
@@ -85,14 +103,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // 2. Check admin-generated keys stored in AsyncStorage
     try {
       const stored = await AsyncStorage.getItem('dnp360_secretKeys');
       if (stored) {
         const keys: Array<{ id: string; code: string; role: string; isActive: boolean; usedBy?: string }> = JSON.parse(stored);
         const matched = keys.find(k => k.code.toUpperCase() === code && k.isActive);
         if (matched) {
-          // If key is assigned to a specific user, log in as them
           if (matched.usedBy) {
             const allUsers = [...DEMO_USERS, ...(await getRegisteredUsers())];
             const found = allUsers.find(u => u.id === matched.usedBy);
@@ -103,7 +119,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               return true;
             }
           }
-          // Unassigned key — log in as the demo user of that role
           const demoForRole = DEMO_USERS.find(u => u.role === matched.role);
           if (demoForRole) {
             const { password: _, ...userData } = demoForRole;
@@ -158,8 +173,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await AsyncStorage.setItem('dnp360_user', JSON.stringify(updated));
   }
 
+  async function resetUserPassword(email: string, newPassword: string): Promise<boolean> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const allUsers = [...DEMO_USERS, ...(await getRegisteredUsers())];
+    const found = allUsers.find(u => u.email.toLowerCase() === normalizedEmail);
+    if (!found) return false;
+    await savePasswordOverride(normalizedEmail, newPassword);
+    const registered = await getRegisteredUsers();
+    const updatedRegistered = registered.map(u =>
+      u.email.toLowerCase() === normalizedEmail ? { ...u, password: newPassword } : u
+    );
+    await saveRegisteredUsers(updatedRegistered);
+    return true;
+  }
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, loginWithCode, register, logout, updateProfile }}>
+    <AuthContext.Provider value={{ user, isLoading, login, loginWithCode, register, logout, updateProfile, resetUserPassword }}>
       {children}
     </AuthContext.Provider>
   );

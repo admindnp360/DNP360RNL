@@ -4,13 +4,15 @@ import { Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextIn
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SearchBar } from '@/components/SearchBar';
 import { useAppData } from '@/contexts/AppContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useColors } from '@/hooks/useColors';
-import type { Ward } from '@/types';
+import type { PasswordResetRequest, Ward } from '@/types';
 
-type Tab = 'wards' | 'notices';
+type Tab = 'wards' | 'notices' | 'resets';
 
 export default function AdminManagement() {
-  const { wards, notices, houses, users, addWard, updateWard, addNotice, deleteNotice, assignWorkerToWard, addHouse } = useAppData();
+  const { wards, notices, houses, users, passwordResetRequests, addWard, updateWard, addNotice, deleteNotice, assignWorkerToWard, addHouse, updatePasswordResetRequest } = useAppData();
+  const { resetUserPassword } = useAuth();
   const colors = useColors();
   const [tab, setTab] = useState<Tab>('wards');
   const [wardSearch, setWardSearch] = useState('');
@@ -18,6 +20,9 @@ export default function AdminManagement() {
   const [showWardModal, setShowWardModal] = useState(false);
   const [showAddHouseModal, setShowAddHouseModal] = useState(false);
   const [showNoticeModal, setShowNoticeModal] = useState(false);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<PasswordResetRequest | null>(null);
+  const [tempPassword, setTempPassword] = useState('');
 
   const [noticeTitle, setNoticeTitle] = useState('');
   const [noticeContent, setNoticeContent] = useState('');
@@ -30,6 +35,8 @@ export default function AdminManagement() {
   const [houseAddress, setHouseAddress] = useState('');
 
   const safaiKarmis = users.filter(u => u.role === 'safaikarmi' && u.isActive !== false);
+  const pendingResets = passwordResetRequests.filter(r => r.status === 'pending');
+  const allResets = [...passwordResetRequests].sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
 
   const filteredWards = wards.filter(w => {
     if (!wardSearch) return true;
@@ -80,24 +87,94 @@ export default function AdminManagement() {
     } finally { setSaving(false); }
   }
 
+  function openApproveModal(request: PasswordResetRequest) {
+    setSelectedRequest(request);
+    setTempPassword('');
+    setShowApproveModal(true);
+  }
+
+  async function handleApproveReset() {
+    if (!selectedRequest) return;
+    if (tempPassword.trim().length < 6) {
+      Alert.alert('Too Short', 'Temporary password must be at least 6 characters.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const success = await resetUserPassword(selectedRequest.email, tempPassword.trim());
+      if (!success) {
+        Alert.alert('Error', 'Could not find a user with this email address.');
+        return;
+      }
+      await updatePasswordResetRequest(selectedRequest.id, 'approved');
+      setShowApproveModal(false);
+      setSelectedRequest(null);
+      setTempPassword('');
+      Alert.alert(
+        '✓ Approved',
+        `Password reset for ${selectedRequest.name}.\n\nTemporary password: ${tempPassword.trim()}\n\nPlease inform the user via their registered mobile number.`
+      );
+    } finally { setSaving(false); }
+  }
+
+  async function handleRejectReset(request: PasswordResetRequest) {
+    Alert.alert(
+      'Reject Request',
+      `Reject password reset request from ${request.name}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject', style: 'destructive',
+          onPress: async () => {
+            await updatePasswordResetRequest(request.id, 'rejected');
+          },
+        },
+      ]
+    );
+  }
+
+  function getStatusColor(status: PasswordResetRequest['status']) {
+    if (status === 'approved') return colors.resolved;
+    if (status === 'rejected') return colors.destructive;
+    return colors.official;
+  }
+
+  function getStatusBg(status: PasswordResetRequest['status']) {
+    if (status === 'approved') return colors.resolvedBg;
+    if (status === 'rejected') return '#FDECEA';
+    return colors.officialBg;
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <Text style={[styles.title, { color: colors.text }]}>Management</Text>
       </View>
 
-      <View style={styles.tabRow}>
-        {[{ key: 'wards', label: 'Wards', icon: 'map' }, { key: 'notices', label: 'Notices', icon: 'volume-2' }].map(t => (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
+        {([
+          { key: 'wards', label: 'Wards', icon: 'map' },
+          { key: 'notices', label: 'Notices', icon: 'volume-2' },
+          { key: 'resets', label: `Resets${pendingResets.length > 0 ? ` (${pendingResets.length})` : ''}`, icon: 'unlock' },
+        ] as const).map(t => (
           <Pressable
             key={t.key}
-            style={[styles.tabBtn, { backgroundColor: tab === t.key ? colors.adminColor : colors.card, borderColor: tab === t.key ? colors.adminColor : colors.border }]}
-            onPress={() => setTab(t.key as Tab)}
+            style={[
+              styles.tabBtn,
+              {
+                backgroundColor: tab === t.key ? colors.adminColor : colors.card,
+                borderColor: t.key === 'resets' && pendingResets.length > 0 && tab !== 'resets'
+                  ? colors.destructive
+                  : tab === t.key ? colors.adminColor : colors.border,
+              },
+            ]}
+            onPress={() => setTab(t.key)}
           >
-            <Feather name={t.icon as any} size={14} color={tab === t.key ? '#fff' : colors.mutedForeground} />
-            <Text style={[styles.tabBtnText, { color: tab === t.key ? '#fff' : colors.mutedForeground }]}>{t.label}</Text>
+            <Feather name={t.icon as any} size={14} color={tab === t.key ? '#fff' : t.key === 'resets' && pendingResets.length > 0 ? colors.destructive : colors.mutedForeground} />
+            <Text style={[styles.tabBtnText, { color: tab === t.key ? '#fff' : t.key === 'resets' && pendingResets.length > 0 ? colors.destructive : colors.mutedForeground }]}>{t.label}</Text>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
 
       {tab === 'wards' ? (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
@@ -134,7 +211,7 @@ export default function AdminManagement() {
             ))}
           </View>
         </ScrollView>
-      ) : (
+      ) : tab === 'notices' ? (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 100 }}>
           <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.adminColor }]} onPress={() => setShowNoticeModal(true)} activeOpacity={0.85}>
             <Feather name="plus" size={16} color="#fff" />
@@ -158,6 +235,75 @@ export default function AdminManagement() {
               <Text style={[styles.noticeDate, { color: colors.mutedForeground }]}>{n.createdAt}</Text>
             </View>
           ))}
+        </ScrollView>
+      ) : (
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 100 }}>
+          <View style={[styles.infoBox, { backgroundColor: colors.adminBg, borderColor: colors.adminColor + '40' }]}>
+            <Feather name="info" size={14} color={colors.adminColor} />
+            <Text style={[styles.infoText, { color: colors.adminColor }]}>
+              Users who forgot their password appear here. Set a temporary password and inform them via mobile.
+            </Text>
+          </View>
+
+          {pendingResets.length > 0 && (
+            <View style={[styles.sectionHeader]}>
+              <Feather name="clock" size={14} color={colors.destructive} />
+              <Text style={[styles.sectionLabel, { color: colors.destructive }]}>Pending ({pendingResets.length})</Text>
+            </View>
+          )}
+
+          {allResets.length === 0 ? (
+            <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Feather name="check-circle" size={36} color={colors.resolved} />
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>All Clear</Text>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No password reset requests yet.</Text>
+            </View>
+          ) : (
+            allResets.map(req => (
+              <View key={req.id} style={[styles.resetCard, { backgroundColor: colors.card, borderColor: req.status === 'pending' ? colors.destructive + '60' : colors.border }]}>
+                <View style={styles.resetTop}>
+                  <View style={[styles.resetAvatar, { backgroundColor: colors.adminBg }]}>
+                    <Text style={[styles.resetAvatarLetter, { color: colors.adminColor }]}>{req.name[0]?.toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.resetName, { color: colors.text }]}>{req.name}</Text>
+                    <Text style={[styles.resetEmail, { color: colors.mutedForeground }]}>{req.email}</Text>
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusBg(req.status) }]}>
+                    <Text style={[styles.statusText, { color: getStatusColor(req.status) }]}>
+                      {req.status.charAt(0).toUpperCase() + req.status.slice(1)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.resetMeta, { borderTopColor: colors.border }]}>
+                  <Feather name="calendar" size={11} color={colors.mutedForeground} />
+                  <Text style={[styles.resetDate, { color: colors.mutedForeground }]}>Requested: {req.requestedAt}</Text>
+                </View>
+
+                {req.status === 'pending' && (
+                  <View style={styles.resetActions}>
+                    <TouchableOpacity
+                      style={[styles.rejectBtn, { borderColor: colors.destructive }]}
+                      onPress={() => handleRejectReset(req)}
+                      activeOpacity={0.8}
+                    >
+                      <Feather name="x" size={13} color={colors.destructive} />
+                      <Text style={[styles.rejectBtnText, { color: colors.destructive }]}>Reject</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.approveBtn, { backgroundColor: colors.resolved }]}
+                      onPress={() => openApproveModal(req)}
+                      activeOpacity={0.85}
+                    >
+                      <Feather name="check" size={13} color="#fff" />
+                      <Text style={styles.approveBtnText}>Approve & Set Password</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ))
+          )}
         </ScrollView>
       )}
 
@@ -312,6 +458,65 @@ export default function AdminManagement() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Approve Password Reset Modal */}
+      <Modal visible={showApproveModal && !!selectedRequest} animationType="slide" presentationStyle="pageSheet">
+        {selectedRequest && (
+          <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Approve Reset</Text>
+              <Pressable onPress={() => { setShowApproveModal(false); setSelectedRequest(null); }}>
+                <Feather name="x" size={22} color={colors.text} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
+              <View style={[styles.infoBox, { backgroundColor: colors.resolvedBg, borderColor: colors.resolved + '50' }]}>
+                <Feather name="user" size={14} color={colors.resolved} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.infoText, { color: colors.text, fontFamily: 'Inter_600SemiBold' }]}>{selectedRequest.name}</Text>
+                  <Text style={[styles.infoText, { color: colors.mutedForeground }]}>{selectedRequest.email}</Text>
+                </View>
+              </View>
+
+              <View style={[styles.infoBox, { backgroundColor: colors.adminBg, borderColor: colors.adminColor + '40' }]}>
+                <Feather name="info" size={14} color={colors.adminColor} />
+                <Text style={[styles.infoText, { color: colors.adminColor }]}>
+                  Set a temporary password for this user. Share it with them via their registered mobile number. They should change it after logging in.
+                </Text>
+              </View>
+
+              <Text style={[styles.fieldLabel, { color: colors.text }]}>Temporary Password *</Text>
+              <TextInput
+                style={[styles.fieldInput, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
+                placeholder="Min. 6 characters"
+                placeholderTextColor={colors.mutedForeground}
+                value={tempPassword}
+                onChangeText={setTempPassword}
+                autoCapitalize="none"
+                secureTextEntry={false}
+              />
+
+              <TouchableOpacity
+                style={[styles.addBtn, { backgroundColor: colors.resolved }, saving && { opacity: 0.6 }]}
+                onPress={handleApproveReset}
+                disabled={saving}
+                activeOpacity={0.85}
+              >
+                <Feather name="check" size={16} color="#fff" />
+                <Text style={styles.addBtnText}>{saving ? 'Processing…' : 'Confirm & Reset Password'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.cancelBtn, { borderColor: colors.border }]}
+                onPress={() => { setShowApproveModal(false); setSelectedRequest(null); }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.cancelBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </SafeAreaView>
+        )}
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -319,8 +524,8 @@ export default function AdminManagement() {
 const styles = StyleSheet.create({
   header: { padding: 16, paddingBottom: 12, borderBottomWidth: 1 },
   title: { fontSize: 22, fontFamily: 'Inter_700Bold' },
-  tabRow: { flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 12 },
-  tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  tabRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
+  tabBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1 },
   tabBtnText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   hint: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: -4 },
   wardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
@@ -342,6 +547,8 @@ const styles = StyleSheet.create({
   noticeDate: { fontSize: 10, fontFamily: 'Inter_400Regular' },
   addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 14 },
   addBtnText: { color: '#fff', fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  cancelBtn: { borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1 },
+  cancelBtnText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
   modalTitle: { fontSize: 20, fontFamily: 'Inter_700Bold' },
   modalSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
@@ -349,6 +556,7 @@ const styles = StyleSheet.create({
   wardStatCard: { flex: 1, borderRadius: 12, padding: 16, borderWidth: 1, alignItems: 'center', gap: 6 },
   wardStatVal: { fontSize: 26, fontFamily: 'Inter_700Bold' },
   wardStatLabel: { fontSize: 11, fontFamily: 'Inter_500Medium' },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   sectionLabel: { fontSize: 15, fontFamily: 'Inter_700Bold' },
   workerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, borderWidth: 1.5, padding: 12 },
   workerAvatar: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
@@ -373,4 +581,23 @@ const styles = StyleSheet.create({
   typeRow: { flexDirection: 'row', gap: 8 },
   typeBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
   typeBtnText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  infoBox: { flexDirection: 'row', gap: 10, padding: 14, borderRadius: 12, borderWidth: 1, alignItems: 'flex-start' },
+  infoText: { flex: 1, fontSize: 12, fontFamily: 'Inter_500Medium', lineHeight: 18 },
+  resetCard: { borderRadius: 14, padding: 14, borderWidth: 1.5, gap: 10 },
+  resetTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  resetAvatar: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
+  resetAvatarLetter: { fontSize: 18, fontFamily: 'Inter_700Bold' },
+  resetName: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  resetEmail: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99 },
+  statusText: { fontSize: 11, fontFamily: 'Inter_700Bold' },
+  resetMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, borderTopWidth: 1, paddingTop: 10 },
+  resetDate: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  resetActions: { flexDirection: 'row', gap: 10 },
+  rejectBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, borderWidth: 1.5, paddingVertical: 10 },
+  rejectBtnText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  approveBtn: { flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, paddingVertical: 10 },
+  approveBtnText: { color: '#fff', fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  emptyCard: { borderRadius: 16, borderWidth: 1, padding: 32, alignItems: 'center', gap: 10 },
+  emptyTitle: { fontSize: 16, fontFamily: 'Inter_700Bold' },
 });
