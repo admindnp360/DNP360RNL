@@ -18,36 +18,27 @@ export default function SKScan() {
   const [notes, setNotes] = useState('');
 
   const recentVisits = getVisitsByWorker(user?.id ?? '').slice(0, 8);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayCount = getVisitsByWorker(user?.id ?? '').filter(v => v.visitDate === todayStr).length;
 
   function nowTime() {
-    const now = new Date();
-    return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const n = new Date();
+    return `${n.getHours().toString().padStart(2, '0')}:${n.getMinutes().toString().padStart(2, '0')}`;
   }
 
   async function markVisit(regNum: string) {
     const reg = regNum.trim().toUpperCase();
     const house = getHouseByRegistration(reg) ?? houses.find(h => h.registrationNumber.toUpperCase() === reg);
-    if (!house) {
-      Alert.alert('Not Found', `House "${regNum}" is not registered.`);
-      return;
-    }
+    if (!house) { Alert.alert('Not Found', `House "${regNum}" is not registered in the system.`); return; }
     const visitDate = new Date().toISOString().split('T')[0];
     await addHouseVisit({
-      houseId: house.id,
-      houseRegistrationNumber: house.registrationNumber,
-      ownerName: house.ownerName,
-      address: house.address,
-      workerId: user?.id ?? '',
-      workerName: user?.name,
-      wardId: house.wardId,
-      collectedGarbage: garbageCollected,
-      notes: notes.trim() || undefined,
-      visitDate,
-      visitTime: nowTime(),
-      status: 'visited',
+      houseId: house.id, houseRegistrationNumber: house.registrationNumber,
+      ownerName: house.ownerName, address: house.address,
+      workerId: user?.id ?? '', workerName: user?.name,
+      wardId: house.wardId, collectedGarbage: garbageCollected,
+      notes: notes.trim() || undefined, visitDate, visitTime: nowTime(), status: 'visited',
     });
-    setManualReg('');
-    setNotes('');
+    setManualReg(''); setNotes('');
     Alert.alert('✓ Visit Recorded', `${house.ownerName}\n${house.address}\n\nGarbage: ${garbageCollected ? '✓ Collected' : '✗ Not Collected'}`);
   }
 
@@ -55,211 +46,245 @@ export default function SKScan() {
     if (houses.length === 0) { Alert.alert('No Houses', 'No houses registered in the system.'); return; }
     setScanning(true);
     await new Promise(r => setTimeout(r, 1800));
-    const randomHouse = houses[Math.floor(Math.random() * houses.length)];
     setScanning(false);
-    await markVisit(randomHouse.registrationNumber);
+    await markVisit(houses[Math.floor(Math.random() * houses.length)].registrationNumber);
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
-      <View style={[styles.header, { borderBottomColor: colors.border }]}>
-        <View>
-          <Text style={[styles.title, { color: colors.text }]}>QR Scanner</Text>
-          <Text style={[styles.sub, { color: colors.mutedForeground }]}>Mark house visits by scanning or manual entry</Text>
-        </View>
-        <View style={[styles.headerBadge, { backgroundColor: colors.safaikarmiBg }]}>
-          <Feather name="camera" size={14} color={colors.safaikarmi} />
-        </View>
-      </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#020E07' }} edges={['top']}>
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
-        {/* Camera Frame */}
-        <View style={[styles.scanFrame, { borderColor: colors.border }]}>
-          <View style={styles.cameraArea}>
-            <LinearGradient colors={['#0A1A0F', '#142B1A']} style={StyleSheet.absoluteFillObject} />
-            <View style={styles.corners}>
-              {([['tl', true, false], ['tr', true, true], ['bl', false, false], ['br', false, true]] as const).map(([pos, top, right]) => (
-                <View
-                  key={pos}
-                  style={[
-                    styles.corner,
-                    top ? { top: 18 } : { bottom: 18 },
-                    right ? { right: 18 } : { left: 18 },
-                    !top && !right && { borderBottomWidth: 3, borderLeftWidth: 3 },
-                    !top && right && { borderBottomWidth: 3, borderRightWidth: 3 },
-                    top && !right && { borderTopWidth: 3, borderLeftWidth: 3 },
-                    top && right && { borderTopWidth: 3, borderRightWidth: 3 },
-                  ]}
-                />
-              ))}
-            </View>
+      {/* ── HERO ── */}
+      <LinearGradient colors={['#020E07', '#063018', '#0A5C2C']} style={styles.hero}>
+        <View style={styles.heroTop}>
+          <View>
+            <Text style={styles.heroTitle}>QR Scanner</Text>
+            <Text style={styles.heroSub}>Mark house visits by scan or manual entry</Text>
+          </View>
+          <LinearGradient colors={['rgba(52,211,153,0.2)', 'rgba(16,185,129,0.1)']} style={styles.heroIconWrap}>
+            <Feather name="camera" size={22} color="#34D399" />
+          </LinearGradient>
+        </View>
+        <View style={styles.heroStats}>
+          {[
+            { label: 'Today',  value: todayCount,   grad: ['#10B981','#059669'] as const },
+            { label: 'Total',  value: recentVisits.length, grad: ['#3B82F6','#2563EB'] as const },
+            { label: 'Houses', value: houses.length, grad: ['#8B5CF6','#6D28D9'] as const },
+          ].map(s => (
+            <LinearGradient key={s.label} colors={s.grad} style={styles.heroStat}>
+              <Text style={styles.heroStatVal}>{s.value}</Text>
+              <Text style={styles.heroStatLbl}>{s.label}</Text>
+            </LinearGradient>
+          ))}
+        </View>
+      </LinearGradient>
+
+      <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={{ padding: 14, gap: 14, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+
+        {/* ── QR SCAN FRAME ── */}
+        <View style={styles.scanFrame}>
+          <LinearGradient colors={['#020E07', '#042812', '#063018']} style={styles.cameraArea}>
+            {/* Corner brackets */}
+            {([['tl', true, false], ['tr', true, true], ['bl', false, false], ['br', false, true]] as const).map(([pos, top, right]) => (
+              <View key={pos} style={[
+                styles.corner,
+                top ? { top: 20 } : { bottom: 20 },
+                right ? { right: 20 } : { left: 20 },
+                !top && !right && { borderBottomWidth: 3, borderLeftWidth: 3 },
+                !top && right && { borderBottomWidth: 3, borderRightWidth: 3 },
+                top && !right && { borderTopWidth: 3, borderLeftWidth: 3 },
+                top && right && { borderTopWidth: 3, borderRightWidth: 3 },
+              ]} />
+            ))}
+            {/* Center */}
             {scanning ? (
-              <View style={styles.scanMessage}>
-                <View style={[styles.scanningPulse, { borderColor: '#7EFBA4' }]}>
-                  <Feather name="loader" size={28} color="#7EFBA4" />
-                </View>
-                <Text style={styles.scanText}>Scanning QR Code…</Text>
-                <Text style={styles.scanSubText}>Please wait</Text>
+              <View style={styles.scanCenter}>
+                <LinearGradient colors={['rgba(52,211,153,0.2)','rgba(16,185,129,0.05)']} style={styles.scanIconRing}>
+                  <Feather name="loader" size={32} color="#34D399" />
+                </LinearGradient>
+                <Text style={styles.scanLabel}>Scanning QR Code…</Text>
+                <Text style={styles.scanSub}>Please wait</Text>
               </View>
             ) : (
-              <View style={styles.scanMessage}>
-                <View style={[styles.scanIcon, { borderColor: '#7EFBA4' }]}>
-                  <Feather name="maximize" size={30} color="#7EFBA4" />
-                </View>
-                <Text style={styles.scanText}>Point at House QR Code</Text>
-                <Text style={styles.scanSubText}>Simulated camera view</Text>
+              <View style={styles.scanCenter}>
+                <LinearGradient colors={['rgba(52,211,153,0.15)','rgba(16,185,129,0.05)']} style={styles.scanIconRing}>
+                  <Feather name="maximize" size={32} color="#34D399" />
+                </LinearGradient>
+                <Text style={styles.scanLabel}>Point at House QR Code</Text>
+                <Text style={styles.scanSub}>Simulated camera view</Text>
               </View>
             )}
-          </View>
-
-          <TouchableOpacity
-            style={[styles.scanBtn, { backgroundColor: colors.safaikarmi, opacity: scanning ? 0.7 : 1 }]}
-            onPress={simulateScan}
-            disabled={scanning}
-            activeOpacity={0.85}
-          >
-            <Feather name="camera" size={18} color="#fff" />
-            <Text style={styles.scanBtnText}>{scanning ? 'Scanning…' : 'Simulate QR Scan'}</Text>
+          </LinearGradient>
+          <TouchableOpacity onPress={simulateScan} disabled={scanning} activeOpacity={0.85} style={scanning ? { opacity: 0.7 } : {}}>
+            <LinearGradient colors={['#10B981', '#059669']} style={styles.scanBtn}>
+              <Feather name="camera" size={18} color="#fff" />
+              <Text style={styles.scanBtnText}>{scanning ? 'Scanning…' : 'Simulate QR Scan'}</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
 
-        {/* Manual Entry */}
+        {/* ── MANUAL ENTRY ── */}
         <View style={[styles.manualCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.manualCardHeader}>
-            <View style={[styles.manualIcon, { backgroundColor: colors.safaikarmiBg }]}>
-              <Feather name="edit-3" size={16} color={colors.safaikarmi} />
-            </View>
+          <View style={styles.manualHeader}>
+            <LinearGradient colors={['#10B981','#059669']} style={styles.manualIcon}>
+              <Feather name="edit-3" size={15} color="#fff" />
+            </LinearGradient>
             <View>
               <Text style={[styles.manualTitle, { color: colors.text }]}>Manual Entry</Text>
-              <Text style={[styles.manualSub, { color: colors.mutedForeground }]}>Enter registration number</Text>
+              <Text style={[styles.manualSub, { color: colors.mutedForeground }]}>Type the registration number</Text>
             </View>
           </View>
 
-          <View style={[styles.inputRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Feather name="hash" size={16} color={colors.safaikarmi} />
-            <TextInput
-              style={[styles.input, { color: colors.text }]}
-              placeholder="e.g. DNPH001"
-              placeholderTextColor={colors.mutedForeground}
-              autoCapitalize="characters"
-              value={manualReg}
-              onChangeText={setManualReg}
-            />
+          {/* Reg number */}
+          <View style={[styles.fieldRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Feather name="hash" size={16} color="#10B981" />
+            <TextInput style={[styles.fieldInput, { color: colors.text }]} placeholder="e.g. DNPH001" placeholderTextColor={colors.mutedForeground} autoCapitalize="characters" value={manualReg} onChangeText={setManualReg} />
           </View>
 
-          <View style={styles.toggleContainer}>
+          {/* Garbage toggle */}
+          <View>
             <Text style={[styles.toggleLabel, { color: colors.text }]}>Garbage Status</Text>
-            <View style={styles.toggleBtns}>
-              <TouchableOpacity
-                style={[styles.toggleBtn, { backgroundColor: garbageCollected ? colors.safaikarmi : colors.surface, borderColor: garbageCollected ? colors.safaikarmi : colors.border }]}
-                onPress={() => setGarbageCollected(true)}
-              >
-                <Feather name="check" size={13} color={garbageCollected ? '#fff' : colors.mutedForeground} />
-                <Text style={[styles.toggleBtnText, { color: garbageCollected ? '#fff' : colors.mutedForeground }]}>Collected</Text>
+            <View style={styles.toggleRow}>
+              <TouchableOpacity onPress={() => setGarbageCollected(true)} activeOpacity={0.85} style={{ flex: 1 }}>
+                {garbageCollected ? (
+                  <LinearGradient colors={['#10B981','#059669']} style={styles.toggleBtnActive}>
+                    <Feather name="check" size={13} color="#fff" />
+                    <Text style={styles.toggleBtnActiveText}>Collected</Text>
+                  </LinearGradient>
+                ) : (
+                  <View style={[styles.toggleBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <Feather name="check" size={13} color={colors.mutedForeground} />
+                    <Text style={[styles.toggleBtnText, { color: colors.mutedForeground }]}>Collected</Text>
+                  </View>
+                )}
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.toggleBtn, { backgroundColor: !garbageCollected ? colors.destructive : colors.surface, borderColor: !garbageCollected ? colors.destructive : colors.border }]}
-                onPress={() => setGarbageCollected(false)}
-              >
-                <Feather name="x" size={13} color={!garbageCollected ? '#fff' : colors.mutedForeground} />
-                <Text style={[styles.toggleBtnText, { color: !garbageCollected ? '#fff' : colors.mutedForeground }]}>Not Collected</Text>
+              <TouchableOpacity onPress={() => setGarbageCollected(false)} activeOpacity={0.85} style={{ flex: 1 }}>
+                {!garbageCollected ? (
+                  <LinearGradient colors={['#EF4444','#DC2626']} style={styles.toggleBtnActive}>
+                    <Feather name="x" size={13} color="#fff" />
+                    <Text style={styles.toggleBtnActiveText}>Not Collected</Text>
+                  </LinearGradient>
+                ) : (
+                  <View style={[styles.toggleBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <Feather name="x" size={13} color={colors.mutedForeground} />
+                    <Text style={[styles.toggleBtnText, { color: colors.mutedForeground }]}>Not Collected</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             </View>
           </View>
 
-          <View style={[styles.inputRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {/* Notes */}
+          <View style={[styles.fieldRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Feather name="file-text" size={16} color={colors.mutedForeground} />
-            <TextInput
-              style={[styles.input, { color: colors.text }]}
-              placeholder="Notes (optional)"
-              placeholderTextColor={colors.mutedForeground}
-              value={notes}
-              onChangeText={setNotes}
-            />
+            <TextInput style={[styles.fieldInput, { color: colors.text }]} placeholder="Notes (optional)" placeholderTextColor={colors.mutedForeground} value={notes} onChangeText={setNotes} />
           </View>
 
-          <TouchableOpacity
-            style={[styles.markBtn, { backgroundColor: colors.safaikarmi, opacity: !manualReg.trim() ? 0.5 : 1 }]}
-            onPress={() => markVisit(manualReg)}
-            disabled={!manualReg.trim()}
-            activeOpacity={0.85}
-          >
-            <Feather name="check-circle" size={16} color="#fff" />
-            <Text style={styles.markBtnText}>Mark House Visit</Text>
+          <TouchableOpacity onPress={() => markVisit(manualReg)} disabled={!manualReg.trim()} activeOpacity={0.85} style={!manualReg.trim() ? { opacity: 0.4 } : {}}>
+            <LinearGradient colors={['#10B981', '#059669']} style={styles.submitBtn}>
+              <Feather name="check-circle" size={16} color="#fff" />
+              <Text style={styles.submitBtnText}>Mark House Visit</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
 
-        {/* Recent Visits */}
-        <View style={styles.recentHeader}>
-          <Text style={[styles.recentTitle, { color: colors.text }]}>Recent Visits</Text>
-          <View style={[styles.countBadge, { backgroundColor: colors.safaikarmiBg }]}>
-            <Text style={[styles.countText, { color: colors.safaikarmi }]}>{recentVisits.length}</Text>
+        {/* ── RECENT VISITS ── */}
+        <View style={{ gap: 10 }}>
+          <View style={styles.sectionHead}>
+            <LinearGradient colors={['#3B82F6','#2563EB']} style={styles.sectionIcon}>
+              <Feather name="clock" size={13} color="#fff" />
+            </LinearGradient>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Visits</Text>
+            <View style={[styles.countBadge, { backgroundColor: '#D1FAE5' }]}>
+              <Text style={[styles.countText, { color: '#059669' }]}>{recentVisits.length}</Text>
+            </View>
           </View>
+          {recentVisits.map(v => (
+            <View key={v.id} style={[styles.visitCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <LinearGradient colors={v.collectedGarbage ? ['#10B981','#059669'] : ['#EF4444','#DC2626']} style={styles.visitAccent} />
+              <View style={styles.visitInner}>
+                <LinearGradient colors={v.collectedGarbage ? ['#10B981','#059669'] : ['#6B7280','#4B5563']} style={styles.visitIcon}>
+                  <Feather name="home" size={13} color="#fff" />
+                </LinearGradient>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.visitReg, { color: colors.text }]}>{v.houseRegistrationNumber}</Text>
+                  <Text style={[styles.visitMeta, { color: colors.mutedForeground }]}>{v.visitDate} · {v.visitTime}</Text>
+                </View>
+                <View style={[styles.garbagePill, { backgroundColor: v.collectedGarbage ? '#D1FAE5' : '#FEE2E2' }]}>
+                  <Feather name={v.collectedGarbage ? 'check' : 'x'} size={10} color={v.collectedGarbage ? '#059669' : '#DC2626'} />
+                  <Text style={[styles.garbageText, { color: v.collectedGarbage ? '#059669' : '#DC2626' }]}>
+                    {v.collectedGarbage ? 'Collected' : 'Skipped'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ))}
+          {recentVisits.length === 0 && (
+            <View style={[styles.empty, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <LinearGradient colors={['#10B981','#059669']} style={styles.emptyIcon}>
+                <Feather name="camera-off" size={24} color="#fff" />
+              </LinearGradient>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No visits yet — start scanning!</Text>
+            </View>
+          )}
         </View>
-        {recentVisits.map(v => (
-          <View key={v.id} style={[styles.visitRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.visitIcon, { backgroundColor: colors.safaikarmiBg }]}>
-              <Feather name="home" size={15} color={colors.safaikarmi} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.visitReg, { color: colors.text }]}>{v.houseRegistrationNumber}</Text>
-              <Text style={[styles.visitTime, { color: colors.mutedForeground }]}>{v.visitDate} · {v.visitTime}</Text>
-            </View>
-            <View style={[styles.garbageBadge, { backgroundColor: v.collectedGarbage ? colors.resolvedBg : '#FDECEA' }]}>
-              <Feather name={v.collectedGarbage ? 'check' : 'x'} size={11} color={v.collectedGarbage ? colors.resolved : colors.destructive} />
-            </View>
-          </View>
-        ))}
-        {recentVisits.length === 0 && (
-          <View style={[styles.empty, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Feather name="camera-off" size={28} color={colors.mutedForeground} />
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No visits yet. Start scanning!</Text>
-          </View>
-        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingBottom: 12, borderBottomWidth: 1 },
-  title: { fontSize: 22, fontFamily: 'Inter_700Bold' },
-  sub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  headerBadge: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  scanFrame: { borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
-  cameraArea: { height: 220, justifyContent: 'center', alignItems: 'center', position: 'relative' },
-  corners: { ...StyleSheet.absoluteFillObject },
-  corner: { position: 'absolute', width: 26, height: 26, borderColor: '#7EFBA4' },
-  scanMessage: { alignItems: 'center', gap: 10 },
-  scanIcon: { width: 60, height: 60, borderRadius: 30, borderWidth: 2, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(126,251,164,0.1)' },
-  scanningPulse: { width: 60, height: 60, borderRadius: 30, borderWidth: 2, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(126,251,164,0.1)' },
-  scanText: { color: '#FFFFFF', fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  scanSubText: { color: '#7EFBA4', fontSize: 11, fontFamily: 'Inter_400Regular' },
+  hero: { padding: 20, paddingBottom: 20, gap: 14 },
+  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  heroTitle: { color: '#fff', fontSize: 26, fontFamily: 'Inter_700Bold' },
+  heroSub: { color: 'rgba(110,231,183,0.65)', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  heroIconWrap: { width: 52, height: 52, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
+  heroStats: { flexDirection: 'row', gap: 8 },
+  heroStat: { flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center', gap: 2 },
+  heroStatVal: { color: '#fff', fontSize: 20, fontFamily: 'Inter_700Bold' },
+  heroStatLbl: { color: 'rgba(255,255,255,0.7)', fontSize: 9, fontFamily: 'Inter_600SemiBold' },
+
+  scanFrame: { borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: '#064E3B' },
+  cameraArea: { height: 220, justifyContent: 'center', alignItems: 'center' },
+  corner: { position: 'absolute', width: 28, height: 28, borderColor: '#34D399' },
+  scanCenter: { alignItems: 'center', gap: 10 },
+  scanIconRing: { width: 66, height: 66, borderRadius: 33, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#34D399' },
+  scanLabel: { color: '#fff', fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  scanSub: { color: '#6EE7B7', fontSize: 11, fontFamily: 'Inter_400Regular' },
   scanBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 16 },
-  scanBtnText: { color: '#fff', fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  manualCard: { borderRadius: 16, padding: 16, borderWidth: 1, gap: 12 },
-  manualCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 2 },
+  scanBtnText: { color: '#fff', fontSize: 14, fontFamily: 'Inter_700Bold' },
+
+  manualCard: { borderRadius: 18, borderWidth: 1, padding: 16, gap: 14 },
+  manualHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   manualIcon: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   manualTitle: { fontSize: 15, fontFamily: 'Inter_700Bold' },
-  manualSub: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14 },
-  input: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', paddingVertical: 13 },
-  toggleContainer: { gap: 8 },
-  toggleLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  toggleBtns: { flexDirection: 'row', gap: 8 },
-  toggleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
+  manualSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  fieldRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14 },
+  fieldInput: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', paddingVertical: 13 },
+  toggleLabel: { fontSize: 13, fontFamily: 'Inter_700Bold', marginBottom: 8 },
+  toggleRow: { flexDirection: 'row', gap: 8 },
+  toggleBtnActive: { borderRadius: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  toggleBtnActiveText: { color: '#fff', fontSize: 12, fontFamily: 'Inter_700Bold' },
+  toggleBtn: { borderRadius: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderWidth: 1 },
   toggleBtnText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
-  markBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 14 },
-  markBtnText: { color: '#fff', fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  recentHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  recentTitle: { fontSize: 17, fontFamily: 'Inter_700Bold' },
+  submitBtn: { borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14 },
+  submitBtnText: { color: '#fff', fontSize: 14, fontFamily: 'Inter_700Bold' },
+
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sectionIcon: { width: 30, height: 30, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
+  sectionTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', flex: 1 },
   countBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
-  countText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
-  visitRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, padding: 14, borderWidth: 1 },
-  visitIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  visitReg: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  visitTime: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 1 },
-  garbageBadge: { width: 28, height: 28, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  empty: { borderRadius: 14, padding: 32, borderWidth: 1, alignItems: 'center', gap: 10 },
+  countText: { fontSize: 12, fontFamily: 'Inter_700Bold' },
+
+  visitCard: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+  visitAccent: { height: 3 },
+  visitInner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
+  visitIcon: { width: 32, height: 32, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
+  visitReg: { fontSize: 13, fontFamily: 'Inter_700Bold' },
+  visitMeta: { fontSize: 10, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  garbagePill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 99 },
+  garbageText: { fontSize: 10, fontFamily: 'Inter_700Bold' },
+
+  empty: { borderRadius: 14, borderWidth: 1, padding: 32, alignItems: 'center', gap: 10 },
+  emptyIcon: { width: 52, height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   emptyText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
 });

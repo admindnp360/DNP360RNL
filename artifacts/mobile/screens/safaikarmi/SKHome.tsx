@@ -1,11 +1,18 @@
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppData } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useColors } from '@/hooks/useColors';
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good Morning';
+  if (h < 17) return 'Good Afternoon';
+  return 'Good Evening';
+}
 
 export default function SKHome() {
   const { user } = useAuth();
@@ -21,6 +28,7 @@ export default function SKHome() {
   const totalHouses = myWard?.totalHouses ?? 0;
   const progressPct = totalHouses > 0 ? Math.min(100, Math.round((todayVisits.length / totalHouses) * 100)) : 0;
   const thisMonthAttendance = attendance.filter(a => a.date.startsWith(todayStr.slice(0, 7))).length;
+  const barColor = progressPct >= 80 ? '#34D399' : progressPct >= 40 ? '#FCD34D' : '#F87171';
 
   async function handleMarkAttendance() {
     if (attendanceMarked) { Alert.alert('Already Marked', 'Your attendance for today is already recorded.'); return; }
@@ -29,146 +37,188 @@ export default function SKHome() {
     else Alert.alert('Error', 'Could not mark attendance. Try again.');
   }
 
-  const greeting = () => {
-    const h = new Date().getHours();
-    if (h < 12) return 'Good Morning';
-    if (h < 17) return 'Good Afternoon';
-    return 'Good Evening';
-  };
-
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#020E07' }} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-        {/* Header */}
-        <LinearGradient colors={['#003D1C', '#006A35']} style={styles.header}>
-          <View style={styles.topRow}>
+
+        {/* ── HERO ── */}
+        <View style={styles.hero}>
+          <LinearGradient colors={['#020E07', '#063018', '#0A5C2C']} style={StyleSheet.absoluteFill} />
+
+          {/* Top bar */}
+          <View style={styles.heroTop}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.greeting}>{greeting()},</Text>
-              <Text style={styles.name}>{user?.name ?? 'Worker'}</Text>
-              <Text style={styles.empId}>{user?.employeeId ?? ''}</Text>
+              <Text style={styles.heroGreeting}>{getGreeting()},</Text>
+              <Text style={styles.heroName}>{user?.name ?? 'Worker'} 👷</Text>
+              <View style={styles.heroEmpRow}>
+                <Feather name="briefcase" size={11} color="#6EE7B7" />
+                <Text style={styles.heroEmpId}>{user?.employeeId ?? ''} · Safai Karmi</Text>
+              </View>
             </View>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarLetter}>{(user?.name ?? 'S')[0]}</Text>
-            </View>
+            <LinearGradient colors={['#10B981', '#059669']} style={styles.avatarRing}>
+              <LinearGradient colors={['#34D399', '#10B981']} style={styles.avatarGrad}>
+                <Text style={styles.avatarLetter}>{(user?.name ?? 'S')[0].toUpperCase()}</Text>
+              </LinearGradient>
+            </LinearGradient>
           </View>
 
-          <View style={[styles.attendancePill, { backgroundColor: attendanceMarked ? 'rgba(160,255,190,0.15)' : 'rgba(255,210,110,0.15)' }]}>
-            <Feather name={attendanceMarked ? 'check-circle' : 'clock'} size={13} color={attendanceMarked ? '#80FFA0' : '#FFD06E'} />
-            <Text style={[styles.attendancePillText, { color: attendanceMarked ? '#80FFA0' : '#FFD06E' }]}>
-              {attendanceMarked ? 'Present Today' : 'Attendance Not Marked'}
+          {/* Attendance status */}
+          <View style={[styles.attendancePill, {
+            backgroundColor: attendanceMarked ? 'rgba(52,211,153,0.15)' : 'rgba(252,211,77,0.15)',
+            borderColor: attendanceMarked ? 'rgba(52,211,153,0.4)' : 'rgba(252,211,77,0.4)',
+          }]}>
+            <Feather name={attendanceMarked ? 'check-circle' : 'clock'} size={13}
+              color={attendanceMarked ? '#34D399' : '#FCD34D'} />
+            <Text style={[styles.attendancePillText, { color: attendanceMarked ? '#34D399' : '#FCD34D' }]}>
+              {attendanceMarked ? '✓ Present Today' : 'Attendance not marked yet'}
             </Text>
           </View>
-        </LinearGradient>
 
-        <View style={styles.body}>
-          {/* Attendance CTA */}
+          {/* Stats strip */}
+          <View style={styles.statsStrip}>
+            {[
+              { label: "Today",    value: todayVisits.length,     grad: ['#10B981','#059669'] as const, icon: 'home' },
+              { label: 'Houses',   value: totalHouses,            grad: ['#3B82F6','#2563EB'] as const, icon: 'map' },
+              { label: 'Month',    value: thisMonthAttendance,    grad: ['#F59E0B','#D97706'] as const, icon: 'calendar' },
+              { label: 'Progress', value: `${progressPct}%`,     grad: ['#8B5CF6','#6D28D9'] as const, icon: 'trending-up' },
+            ].map(s => (
+              <View key={s.label} style={styles.statCell}>
+                <LinearGradient colors={s.grad} style={styles.statIcon}>
+                  <Feather name={s.icon as any} size={12} color="#fff" />
+                </LinearGradient>
+                <Text style={styles.statVal}>{s.value}</Text>
+                <Text style={styles.statLbl}>{s.label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={[styles.body, { backgroundColor: colors.background }]}>
+
+          {/* ── MARK ATTENDANCE CTA ── */}
           {!attendanceMarked && (
-            <TouchableOpacity style={styles.markBtn} onPress={handleMarkAttendance} activeOpacity={0.85}>
-              <LinearGradient colors={['#006A35', '#00A550']} style={styles.markBtnGradient}>
-                <Feather name="check-circle" size={20} color="#fff" />
-                <Text style={styles.markBtnText}>Mark Today's Attendance</Text>
+            <TouchableOpacity onPress={handleMarkAttendance} activeOpacity={0.85} style={styles.markBtnWrap}>
+              <LinearGradient colors={['#059669', '#10B981', '#34D399']} style={styles.markBtn} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                <LinearGradient colors={['rgba(255,255,255,0.2)', 'rgba(255,255,255,0.05)']} style={styles.markBtnIcon}>
+                  <Feather name="check-circle" size={20} color="#fff" />
+                </LinearGradient>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.markBtnTitle}>Mark Today's Attendance</Text>
+                  <Text style={styles.markBtnSub}>Tap to record your presence</Text>
+                </View>
+                <Feather name="arrow-right" size={18} color="rgba(255,255,255,0.8)" />
               </LinearGradient>
             </TouchableOpacity>
           )}
 
-          {/* Stats Grid */}
-          <View style={styles.statsGrid}>
-            {[
-              { label: "Today's Visits", value: todayVisits.length, icon: 'home', color: colors.safaikarmi, bg: colors.safaikarmiBg },
-              { label: 'Total Houses', value: totalHouses, icon: 'map', color: colors.citizen, bg: colors.citizenBg },
-              { label: 'This Month', value: thisMonthAttendance, icon: 'calendar', color: colors.official, bg: colors.officialBg },
-              { label: 'Progress', value: `${progressPct}%`, icon: 'trending-up', color: colors.resolved, bg: colors.resolvedBg },
-            ].map(s => (
-              <View key={s.label} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={[styles.statIcon, { backgroundColor: s.bg }]}>
-                  <Feather name={s.icon as any} size={16} color={s.color} />
-                </View>
-                <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
-                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{s.label}</Text>
+          {/* ── WARD CARD ── */}
+          {myWard && (
+            <View style={styles.section}>
+              <View style={styles.sectionHead}>
+                <LinearGradient colors={['#10B981', '#059669']} style={styles.sectionIcon}>
+                  <Feather name="map-pin" size={13} color="#fff" />
+                </LinearGradient>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>My Ward</Text>
               </View>
-            ))}
+              <LinearGradient colors={['#020E07', '#063018']} style={styles.wardCard}>
+                <View style={styles.wardTop}>
+                  <LinearGradient colors={['rgba(52,211,153,0.2)', 'rgba(16,185,129,0.1)']} style={styles.wardIconWrap}>
+                    <Feather name="map-pin" size={18} color="#34D399" />
+                  </LinearGradient>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.wardName}>{myWard.name}</Text>
+                    <Text style={styles.wardArea}>{myWard.area}</Text>
+                  </View>
+                  <View style={styles.wardNumBadge}>
+                    <Text style={styles.wardNumText}>W{myWard.wardNumber}</Text>
+                  </View>
+                </View>
+
+                {/* Progress */}
+                <View style={styles.progressSection}>
+                  <View style={styles.progressHeader}>
+                    <Text style={styles.progressLabel}>{todayVisits.length} of {totalHouses} houses visited today</Text>
+                    <Text style={[styles.progressPct, { color: barColor }]}>{progressPct}%</Text>
+                  </View>
+                  <View style={styles.progressTrack}>
+                    <View style={[styles.progressFill, { width: `${progressPct}%` as any, backgroundColor: barColor }]} />
+                  </View>
+                  <View style={styles.progressFooter}>
+                    <View style={[styles.progressChip, { backgroundColor: progressPct >= 80 ? '#D1FAE5' : '#FEF3C7' }]}>
+                      <Feather name={progressPct >= 80 ? 'check-circle' : 'clock'} size={10}
+                        color={progressPct >= 80 ? '#059669' : '#D97706'} />
+                      <Text style={[styles.progressChipText, { color: progressPct >= 80 ? '#059669' : '#D97706' }]}>
+                        {progressPct >= 80 ? 'Great progress!' : `${totalHouses - todayVisits.length} remaining`}
+                      </Text>
+                    </View>
+                    {attendanceMarked && (
+                      <View style={styles.presentBadge}>
+                        <Feather name="user-check" size={10} color="#34D399" />
+                        <Text style={styles.presentBadgeText}>Present</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              </LinearGradient>
+            </View>
+          )}
+
+          {/* ── RECENT VISITS ── */}
+          <View style={styles.section}>
+            <View style={styles.sectionHead}>
+              <LinearGradient colors={['#3B82F6', '#2563EB']} style={styles.sectionIcon}>
+                <Feather name="clock" size={13} color="#fff" />
+              </LinearGradient>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Visits</Text>
+              <View style={[styles.countBadge, { backgroundColor: '#D1FAE5' }]}>
+                <Text style={[styles.countText, { color: '#059669' }]}>{visits.length}</Text>
+              </View>
+            </View>
+
+            {visits.length > 0 ? visits.slice(0, 6).map(v => (
+              <View key={v.id} style={[styles.visitCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <LinearGradient colors={v.collectedGarbage ? ['#10B981', '#059669'] : ['#EF4444', '#DC2626']} style={styles.visitAccent} />
+                <View style={styles.visitInner}>
+                  <LinearGradient colors={v.collectedGarbage ? ['#10B981', '#059669'] : ['#6B7280', '#4B5563']} style={styles.visitIcon}>
+                    <Feather name="home" size={14} color="#fff" />
+                  </LinearGradient>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.visitReg, { color: colors.text }]}>{v.houseRegistrationNumber}</Text>
+                    <Text style={[styles.visitMeta, { color: colors.mutedForeground }]}>{v.ownerName} · {v.visitDate} {v.visitTime}</Text>
+                  </View>
+                  <View style={[styles.garbagePill, {
+                    backgroundColor: v.collectedGarbage ? '#D1FAE5' : '#FEE2E2',
+                  }]}>
+                    <Feather name={v.collectedGarbage ? 'check' : 'x'} size={10}
+                      color={v.collectedGarbage ? '#059669' : '#DC2626'} />
+                    <Text style={[styles.garbagePillText, { color: v.collectedGarbage ? '#059669' : '#DC2626' }]}>
+                      {v.collectedGarbage ? 'Collected' : 'Skipped'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )) : (
+              <View style={[styles.empty, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <LinearGradient colors={['#10B981', '#059669']} style={styles.emptyIcon}>
+                  <Feather name="home" size={26} color="#fff" />
+                </LinearGradient>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>No visits yet</Text>
+                <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>Start scanning QR codes to record visits</Text>
+              </View>
+            )}
           </View>
 
-          {/* Ward Card */}
-          {myWard && (
-            <View style={[styles.wardCard, { backgroundColor: colors.card, borderColor: colors.safaikarmi + '40' }]}>
-              <View style={styles.wardTop}>
-                <LinearGradient colors={['#003D1C', '#006A35']} style={styles.wardIcon}>
-                  <Feather name="map-pin" size={16} color="#fff" />
-                </LinearGradient>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.wardName, { color: colors.text }]}>{myWard.name}</Text>
-                  <Text style={[styles.wardArea, { color: colors.mutedForeground }]}>{myWard.area}</Text>
-                </View>
-                <View style={[styles.wardNumBadge, { backgroundColor: colors.safaikarmiBg }]}>
-                  <Text style={[styles.wardNumText, { color: colors.safaikarmi }]}>W{myWard.wardNumber}</Text>
-                </View>
-              </View>
-
-              <View>
-                <View style={styles.progressHeader}>
-                  <Text style={[styles.progressLabel, { color: colors.mutedForeground }]}>
-                    {todayVisits.length} of {totalHouses} houses visited
-                  </Text>
-                  <Text style={[styles.progressPct, { color: colors.safaikarmi }]}>{progressPct}%</Text>
-                </View>
-                <View style={[styles.progressBar, { backgroundColor: colors.surface }]}>
-                  <LinearGradient
-                    colors={['#006A35', '#00A550']}
-                    style={[styles.progressFill, { width: `${progressPct}%` }]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                  />
-                </View>
-              </View>
-
-              {attendanceMarked && (
-                <View style={[styles.presentBadge, { backgroundColor: colors.safaikarmiBg }]}>
-                  <Feather name="check-circle" size={12} color={colors.safaikarmi} />
-                  <Text style={[styles.presentText, { color: colors.safaikarmi }]}>Attendance Marked</Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Recent Visits */}
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Visits</Text>
-          {visits.slice(0, 6).map(v => (
-            <View key={v.id} style={[styles.visitRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={[styles.visitIcon, { backgroundColor: colors.safaikarmiBg }]}>
-                <Feather name="home" size={15} color={colors.safaikarmi} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.visitHouse, { color: colors.text }]}>{v.houseRegistrationNumber}</Text>
-                <Text style={[styles.visitMeta, { color: colors.mutedForeground }]}>{v.visitDate} · {v.visitTime}</Text>
-              </View>
-              <View style={[styles.garbageBadge, { backgroundColor: v.collectedGarbage ? colors.resolvedBg : '#FDECEA' }]}>
-                <Feather name={v.collectedGarbage ? 'check' : 'x'} size={11} color={v.collectedGarbage ? colors.resolved : colors.destructive} />
-                <Text style={[styles.garbageText, { color: v.collectedGarbage ? colors.resolved : colors.destructive }]}>
-                  {v.collectedGarbage ? 'Collected' : 'Skipped'}
-                </Text>
-              </View>
-            </View>
-          ))}
-          {visits.length === 0 && (
-            <View style={[styles.empty, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Feather name="home" size={28} color={colors.mutedForeground} />
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No visits yet. Start scanning QR codes!</Text>
-            </View>
-          )}
-
-          <TouchableOpacity style={styles.announceBannerWrap} activeOpacity={0.85} onPress={() => Linking.openURL('tel:0618400000')}>
-            <LinearGradient colors={['#003D1C', '#007F42']} style={styles.announceBanner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-              <View style={styles.bannerIconWrap}>
-                <Feather name="phone" size={18} color="#FFFFFF" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.bannerTitle}>Nagar Parishad Daudnagar</Text>
-                <Text style={styles.bannerSub}>Municipal Office: 06184-XXXXXX</Text>
-              </View>
-              <Feather name="chevron-right" size={16} color="rgba(255,255,255,0.7)" />
+          {/* ── MUNICIPAL BANNER ── */}
+          <LinearGradient colors={['#020E07', '#063018']} style={styles.banner}>
+            <LinearGradient colors={['rgba(52,211,153,0.2)', 'rgba(16,185,129,0.1)']} style={styles.bannerIcon}>
+              <Feather name="home" size={18} color="#34D399" />
             </LinearGradient>
-          </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bannerTitle}>Nagar Parishad Daudnagar</Text>
+              <Text style={styles.bannerSub}>Municipal Office · Bihar, India</Text>
+            </View>
+            <Feather name="chevron-right" size={16} color="rgba(52,211,153,0.6)" />
+          </LinearGradient>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -176,50 +226,73 @@ export default function SKHome() {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingTop: 16, paddingBottom: 28, paddingHorizontal: 20, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
-  topRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14 },
-  greeting: { color: '#9DFFC0', fontSize: 13, fontFamily: 'Inter_400Regular' },
-  name: { color: '#FFFFFF', fontSize: 24, fontFamily: 'Inter_700Bold' },
-  empId: { color: '#7CFFA4', fontSize: 12, fontFamily: 'Inter_500Medium', marginTop: 2 },
-  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.18)', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' },
-  avatarLetter: { color: '#FFFFFF', fontSize: 24, fontFamily: 'Inter_700Bold' },
-  attendancePill: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 99 },
-  attendancePillText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
-  body: { padding: 16, gap: 14 },
-  markBtn: { borderRadius: 16, overflow: 'hidden' },
-  markBtnGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  markBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  statCard: { width: '47%', flexGrow: 1, borderRadius: 14, padding: 14, borderWidth: 1, gap: 6 },
-  statIcon: { width: 38, height: 38, borderRadius: 11, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-  statValue: { fontSize: 26, fontFamily: 'Inter_700Bold' },
-  statLabel: { fontSize: 11, fontFamily: 'Inter_400Regular' },
-  wardCard: { borderRadius: 16, padding: 16, borderWidth: 1.5, gap: 14 },
+  hero: { overflow: 'hidden', paddingBottom: 24 },
+  heroTop: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 20, paddingTop: 14, marginBottom: 14 },
+  heroGreeting: { color: '#6EE7B7', fontSize: 13, fontFamily: 'Inter_400Regular' },
+  heroName: { color: '#fff', fontSize: 22, fontFamily: 'Inter_700Bold', marginTop: 2 },
+  heroEmpRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
+  heroEmpId: { color: '#6EE7B7', fontSize: 11, fontFamily: 'Inter_500Medium' },
+  avatarRing: { width: 54, height: 54, borderRadius: 27, justifyContent: 'center', alignItems: 'center' },
+  avatarGrad: { width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center' },
+  avatarLetter: { color: '#fff', fontSize: 20, fontFamily: 'Inter_700Bold' },
+  attendancePill: { flexDirection: 'row', alignItems: 'center', gap: 7, marginHorizontal: 20, marginBottom: 16, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1, alignSelf: 'flex-start' },
+  attendancePillText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  statsStrip: { flexDirection: 'row', marginHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 18, padding: 12 },
+  statCell: { flex: 1, alignItems: 'center', gap: 4 },
+  statIcon: { width: 30, height: 30, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
+  statVal: { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
+  statLbl: { color: 'rgba(255,255,255,0.55)', fontSize: 9, fontFamily: 'Inter_500Medium' },
+
+  body: { padding: 16, gap: 20 },
+
+  markBtnWrap: { borderRadius: 18, overflow: 'hidden' },
+  markBtn: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
+  markBtnIcon: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
+  markBtnTitle: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },
+  markBtnSub: { color: 'rgba(255,255,255,0.65)', fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+
+  section: { gap: 10 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  sectionIcon: { width: 30, height: 30, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
+  sectionTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', flex: 1 },
+  countBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
+  countText: { fontSize: 12, fontFamily: 'Inter_700Bold' },
+
+  wardCard: { borderRadius: 18, padding: 16, gap: 14 },
   wardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  wardIcon: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  wardName: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  wardArea: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
-  wardNumBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99 },
-  wardNumText: { fontSize: 12, fontFamily: 'Inter_700Bold' },
-  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  progressLabel: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  progressPct: { fontSize: 12, fontFamily: 'Inter_700Bold' },
-  progressBar: { height: 8, borderRadius: 4, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 4 },
-  presentBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99 },
-  presentText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  sectionTitle: { fontSize: 17, fontFamily: 'Inter_700Bold' },
-  visitRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 13, padding: 14, borderWidth: 1 },
-  visitIcon: { width: 38, height: 38, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  visitHouse: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  visitMeta: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  garbageBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  garbageText: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
-  empty: { borderRadius: 14, padding: 32, borderWidth: 1, alignItems: 'center', gap: 10 },
-  emptyText: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center' },
-  announceBannerWrap: { borderRadius: 16, overflow: 'hidden' },
-  announceBanner: { flexDirection: 'row', gap: 12, alignItems: 'center', borderRadius: 16, padding: 16 },
-  bannerIconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-  bannerTitle: { color: '#FFFFFF', fontSize: 14, fontFamily: 'Inter_700Bold' },
-  bannerSub: { color: 'rgba(255,255,255,0.8)', fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  wardIconWrap: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
+  wardName: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },
+  wardArea: { color: 'rgba(110,231,183,0.7)', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  wardNumBadge: { backgroundColor: 'rgba(52,211,153,0.15)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(52,211,153,0.3)' },
+  wardNumText: { color: '#34D399', fontSize: 12, fontFamily: 'Inter_700Bold' },
+  progressSection: { gap: 8 },
+  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  progressLabel: { color: 'rgba(255,255,255,0.65)', fontSize: 12, fontFamily: 'Inter_400Regular' },
+  progressPct: { fontSize: 18, fontFamily: 'Inter_700Bold' },
+  progressTrack: { height: 10, borderRadius: 5, backgroundColor: 'rgba(255,255,255,0.1)', overflow: 'hidden' },
+  progressFill: { height: 10, borderRadius: 5 },
+  progressFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  progressChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 99 },
+  progressChipText: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
+  presentBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(52,211,153,0.15)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 99 },
+  presentBadgeText: { color: '#34D399', fontSize: 10, fontFamily: 'Inter_600SemiBold' },
+
+  visitCard: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+  visitAccent: { height: 3 },
+  visitInner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
+  visitIcon: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  visitReg: { fontSize: 13, fontFamily: 'Inter_700Bold' },
+  visitMeta: { fontSize: 10, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  garbagePill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 99 },
+  garbagePillText: { fontSize: 10, fontFamily: 'Inter_700Bold' },
+
+  empty: { borderRadius: 16, borderWidth: 1, padding: 36, alignItems: 'center', gap: 10 },
+  emptyIcon: { width: 60, height: 60, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  emptyTitle: { fontSize: 15, fontFamily: 'Inter_700Bold' },
+  emptySub: { fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+
+  banner: { borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
+  bannerIcon: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
+  bannerTitle: { color: '#fff', fontSize: 14, fontFamily: 'Inter_700Bold' },
+  bannerSub: { color: 'rgba(110,231,183,0.65)', fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
 });
