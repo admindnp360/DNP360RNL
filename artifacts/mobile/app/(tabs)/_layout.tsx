@@ -5,6 +5,7 @@ import React from 'react';
 import { Platform, StyleSheet, useColorScheme, View } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { SyncStatusBar } from '@/components/SyncStatusBar';
 
 type TabName = 'index' | 'action' | 'secondary' | 'tertiary' | 'profile';
 
@@ -60,40 +61,43 @@ export default function TabLayout() {
   const tabNames: TabName[] = ['index', 'action', 'secondary', 'tertiary', 'profile'];
 
   return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: activeColor,
-        tabBarInactiveTintColor: colors.mutedForeground,
-        headerShown: false,
-        tabBarStyle: {
-          position: 'absolute',
-          backgroundColor: isIOS ? 'transparent' : colors.background,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-          elevation: 0,
-          height: 60,
-          paddingBottom: 6,
-          paddingTop: 6,
-        },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView intensity={90} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-          ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
-          ),
-        tabBarLabelStyle: { fontSize: 10, fontFamily: 'Inter_500Medium' },
-      }}
-    >
-      {tabNames.map((name) => (
-        <Tabs.Screen
-          key={name}
-          name={name}
-          options={{
-            title: tabs[name].label,
-            tabBarIcon: ({ color }) => <Feather name={tabs[name].icon as any} size={20} color={color} />,
-          }}
-        />
-      ))}
-    </Tabs>
+    <View style={{ flex: 1 }}>
+      <Tabs
+        screenOptions={{
+          tabBarActiveTintColor: activeColor,
+          tabBarInactiveTintColor: colors.mutedForeground,
+          headerShown: false,
+          tabBarStyle: {
+            position: 'absolute',
+            backgroundColor: isIOS ? 'transparent' : colors.background,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+            elevation: 0,
+            height: 60,
+            paddingBottom: 6,
+            paddingTop: 6,
+          },
+          tabBarBackground: () =>
+            isIOS ? (
+              <BlurView intensity={90} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
+            ) : (
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
+            ),
+          tabBarLabelStyle: { fontSize: 10, fontFamily: 'Inter_500Medium' },
+        }}
+      >
+        {tabNames.map((name) => (
+          <Tabs.Screen
+            key={name}
+            name={name}
+            options={{
+              title: tabs[name].label,
+              tabBarIcon: ({ color }) => <Feather name={tabs[name].icon as any} size={20} color={color} />,
+            }}
+          />
+        ))}
+      </Tabs>
+      <SyncStatusBar />
+    </View>
   );
 }
