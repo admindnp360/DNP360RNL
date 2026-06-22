@@ -69,9 +69,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let settled = false;
+
+    AsyncStorage.getItem('dnp360_user').then(stored => {
+      if (stored && !settled) {
+        try { setUser(JSON.parse(stored)); } catch {}
+      }
+      setIsLoading(false);
+    }).catch(() => setIsLoading(false));
+
     const unsub = onAuthStateChanged(firebaseAuth, async (firebaseUser) => {
+      settled = true;
       if (firebaseUser) {
-        const profile = await getUserProfileFromRTDB(firebaseUser.uid);
+        let profile = await getUserProfileFromRTDB(firebaseUser.uid);
+        if (!profile) {
+          const stored = await AsyncStorage.getItem('dnp360_user').catch(() => null);
+          if (stored) { try { profile = JSON.parse(stored); } catch {} }
+        }
         if (profile) {
           setUser(profile);
           await AsyncStorage.setItem('dnp360_user', JSON.stringify(profile));
@@ -79,13 +93,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setIsLoading(false);
     });
-
-    AsyncStorage.getItem('dnp360_user').then(stored => {
-      if (stored && !user) {
-        try { setUser(JSON.parse(stored)); } catch {}
-      }
-      setIsLoading(false);
-    }).catch(() => setIsLoading(false));
 
     return unsub;
   }, []);
@@ -98,12 +105,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const cred = await signInWithEmailAndPassword(firebaseAuth, emailToUse, password);
-      const profile = await getUserProfileFromRTDB(cred.user.uid);
-      if (profile) {
-        setUser(profile);
-        await AsyncStorage.setItem('dnp360_user', JSON.stringify(profile));
-        return true;
+      let profile = await getUserProfileFromRTDB(cred.user.uid);
+      if (!profile) {
+        profile = {
+          id: cred.user.uid,
+          name: cred.user.displayName ?? emailToUse.split('@')[0],
+          email: emailToUse,
+          role: 'citizen',
+          isActive: true,
+          createdAt: today(),
+        };
+        await saveUserProfileToRTDB(cred.user.uid, profile);
       }
+      setUser(profile);
+      await AsyncStorage.setItem('dnp360_user', JSON.stringify(profile));
+      return true;
     } catch {}
 
     return loginWithDemoUser(identifier, password, method);

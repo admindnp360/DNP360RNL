@@ -218,13 +218,11 @@ const styles = StyleSheet.create({
 
   header: { alignItems: 'center', marginBottom: 22 },
   logoWrap: {
-    width: 92, height: 92, borderRadius: 22,
-    overflow: 'hidden',
-    marginBottom: 14,
-    shadowColor: '#1264E8', shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, shadowRadius: 14, elevation: 10,
+    width: 130, height: 130,
+    marginBottom: 10,
+    justifyContent: 'center', alignItems: 'center',
   },
-  logoImage: { width: 92, height: 92 },
+  logoImage: { width: 130, height: 130 },
   orgName: { color: '#FFFFFF', fontSize: 18, fontFamily: 'Inter_700Bold' },
   orgSub: { color: '#8AB0D8', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 3 },
 

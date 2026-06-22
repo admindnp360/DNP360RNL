@@ -417,25 +417,25 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  hero: { overflow: 'hidden', paddingBottom: 28 },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 14, marginBottom: 20 },
-  rolePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99, borderWidth: 1 },
+  hero: { overflow: 'hidden', paddingBottom: 14 },
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, marginBottom: 8 },
+  rolePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99, borderWidth: 1 },
   rolePillText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  editBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center' },
+  editBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center', alignItems: 'center' },
 
-  avatarWrap: { alignItems: 'center', marginBottom: 16, position: 'relative' },
-  avatarRing1: { width: 100, height: 100, borderRadius: 50, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
-  avatarRing2: { width: 90, height: 90, borderRadius: 45, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
-  avatarCore: { width: 78, height: 78, borderRadius: 39, justifyContent: 'center', alignItems: 'center' },
-  avatarLetter: { color: '#fff', fontSize: 32, fontFamily: 'Inter_700Bold' },
-  onlineDot: { position: 'absolute', bottom: 4, right: '36%', width: 14, height: 14, borderRadius: 7, borderWidth: 2 },
+  avatarWrap: { alignItems: 'center', marginBottom: 8, position: 'relative' },
+  avatarRing1: { width: 68, height: 68, borderRadius: 34, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
+  avatarRing2: { width: 60, height: 60, borderRadius: 30, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
+  avatarCore: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center' },
+  avatarLetter: { color: '#fff', fontSize: 22, fontFamily: 'Inter_700Bold' },
+  onlineDot: { position: 'absolute', bottom: 2, right: '34%', width: 10, height: 10, borderRadius: 5, borderWidth: 2 },
 
-  heroName: { color: '#fff', fontSize: 24, fontFamily: 'Inter_700Bold', textAlign: 'center', paddingHorizontal: 20 },
-  heroSub: { fontSize: 13, fontFamily: 'Inter_500Medium', textAlign: 'center', marginTop: 2 },
-  heroEmail: { fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center', marginTop: 2, marginBottom: 12 },
-  heroBadgeRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 4 },
-  heroBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99 },
-  heroBadgeText: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontFamily: 'Inter_500Medium' },
+  heroName: { color: '#fff', fontSize: 18, fontFamily: 'Inter_700Bold', textAlign: 'center', paddingHorizontal: 20 },
+  heroSub: { fontSize: 12, fontFamily: 'Inter_500Medium', textAlign: 'center', marginTop: 1 },
+  heroEmail: { fontSize: 11, fontFamily: 'Inter_400Regular', textAlign: 'center', marginTop: 1, marginBottom: 8 },
+  heroBadgeRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginBottom: 2 },
+  heroBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 },
+  heroBadgeText: { color: 'rgba(255,255,255,0.7)', fontSize: 9, fontFamily: 'Inter_500Medium' },
 
   body: { padding: 16, gap: 18 },
 

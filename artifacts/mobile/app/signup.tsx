@@ -263,9 +263,8 @@ const styles = StyleSheet.create({
   /* Header */
   header: { alignItems: 'center', gap: 8, marginBottom: 22 },
   logoWrap: {
-    width: 68, height: 68, borderRadius: 18,
+    width: 72, height: 72,
     justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: 'rgba(30,123,240,0.3)',
   },
   headerTitle: { color: '#FFFFFF', fontSize: 20, fontFamily: 'Inter_700Bold' },
   headerSub: { color: '#3A5E82', fontSize: 12, fontFamily: 'Inter_400Regular' },
