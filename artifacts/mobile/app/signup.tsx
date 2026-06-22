@@ -98,6 +98,9 @@ export default function SignUpScreen() {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          showsHorizontalScrollIndicator={false}
+          horizontal={false}
+          bounces={false}
         >
           {/* ── Top bar ── */}
           <Pressable style={styles.backRow} onPress={() => router.back()}>
@@ -107,10 +110,9 @@ export default function SignUpScreen() {
 
           {/* ── Header ── */}
           <View style={styles.header}>
-            <LinearGradient colors={['rgba(30,123,240,0.22)','rgba(30,123,240,0.06)']}
-              style={styles.logoWrap}>
+            <View style={styles.logoWrap}>
               <DNP360Logo size="sm" />
-            </LinearGradient>
+            </View>
             <Text style={styles.headerTitle}>Create Citizen Account</Text>
             <Text style={styles.headerSub}>Register to access DNP360 services</Text>
           </View>
@@ -233,7 +235,7 @@ function Field({ label, icon, placeholder, value, onChangeText, keyboardType, au
 
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
-  scroll: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 56, paddingBottom: 32 },
+  scroll: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 56, paddingBottom: 32, width: '100%' },
 
   /* Success */
   successScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 18, padding: 32 },

@@ -76,7 +76,7 @@ export default function LoginScreen() {
           <View style={styles.header}>
             <View style={styles.logoWrap}>
               <Image
-                source={require('@/assets/images/icon.png')}
+                source={require('@/assets/images/dnp360-logo.png')}
                 style={styles.logoImage}
                 resizeMode="contain"
               />
