@@ -529,8 +529,8 @@ const s = StyleSheet.create({
 
   roleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   roleCardWrap: { width: '47.5%', borderRadius: 14, overflow: 'hidden' },
-  roleCardActive: { paddingVertical: 14, paddingHorizontal: 12, alignItems: 'center', gap: 6 },
-  roleCardInactive: { paddingVertical: 14, paddingHorizontal: 12, alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
+  roleCardActive: { paddingVertical: 7, paddingHorizontal: 12, alignItems: 'center', gap: 4, flexDirection: 'row', justifyContent: 'center' },
+  roleCardInactive: { paddingVertical: 7, paddingHorizontal: 12, alignItems: 'center', gap: 4, flexDirection: 'row', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
   roleCardTxt: { color: '#475569', fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 0.5, textAlign: 'center' },
   roleCardTxtActive: { color: '#FFFFFF', fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 0.5, textAlign: 'center' },
 
