@@ -18,13 +18,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAlert } from '@/contexts/AlertContext';
 import { useAuth } from '@/contexts/AuthContext';
 
-const FIELDS = [
-  { key: 'name',    label: 'Full Name',      icon: 'user',        ph: 'Your full name',            kbType: 'default',       caps: 'words',  required: true },
-  { key: 'email',   label: 'Email Address',  icon: 'mail',        ph: 'your@email.com',            kbType: 'email-address', caps: 'none',   required: true },
-  { key: 'mobile',  label: 'Mobile Number',  icon: 'smartphone',  ph: '10-digit mobile number',    kbType: 'phone-pad',     caps: 'none',   required: true, max: 10 },
-  { key: 'address', label: 'Address',        icon: 'map-pin',     ph: 'Ward / Area, Daudnagar',    kbType: 'default',       caps: 'sentences', required: false },
-] as const;
-
 export default function SignUpScreen() {
   const { register } = useAuth();
   const { showAlert } = useAlert();
@@ -40,9 +33,6 @@ export default function SignUpScreen() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [createdName, setCreatedName] = useState('');
-
-  const values: Record<string, string> = { name, email, mobile, address };
-  const setters: Record<string, (v: string) => void> = { name: setName, email: setEmail, mobile: setMobile, address: setAddress };
 
   async function handleSignUp() {
     if (!name.trim() || !email.trim() || !mobile.trim() || !password) {
@@ -69,7 +59,7 @@ export default function SignUpScreen() {
       } else {
         setCreatedName(name.trim());
         setSuccess(true);
-        setTimeout(() => router.replace('/(tabs)'), 3500);
+        setTimeout(() => router.replace('/(tabs)'), 3000);
       }
     } finally {
       setLoading(false);
@@ -79,22 +69,20 @@ export default function SignUpScreen() {
   if (success) {
     return (
       <View style={{ flex: 1 }}>
-        <LinearGradient colors={['#07002E', '#052A1A', '#07002E']} style={StyleSheet.absoluteFill} />
-        <View style={styles.successScreen}>
-          <View style={styles.successRing}>
-            <LinearGradient colors={['#10B981', '#059669']} style={styles.successIconWrap}>
-              <Feather name="check" size={42} color="#fff" />
+        <LinearGradient colors={['#060C1D', '#0B1429', '#111B3E']} style={StyleSheet.absoluteFill} />
+        <View style={s.successWrap}>
+          <View style={s.successRing}>
+            <LinearGradient colors={['#10B981', '#059669']} style={s.successIcon}>
+              <Feather name="check" size={38} color="#fff" />
             </LinearGradient>
           </View>
-          <Text style={styles.successTitle}>Account Created!</Text>
-          <Text style={styles.successName}>{createdName}</Text>
-          <Text style={styles.successMsg}>
-            Your citizen account is ready.{'\n'}Redirecting to dashboard…
-          </Text>
-          <TouchableOpacity onPress={() => router.replace('/(tabs)')} activeOpacity={0.85}>
-            <LinearGradient colors={['#10B981', '#059669']} style={styles.successBtn}>
+          <Text style={s.successTitle}>Account Created!</Text>
+          <Text style={s.successName}>{createdName}</Text>
+          <Text style={s.successMsg}>Your citizen account is ready.{'\n'}Redirecting to dashboard…</Text>
+          <TouchableOpacity onPress={() => router.replace('/(tabs)')} activeOpacity={0.85} style={s.successBtnWrap}>
+            <LinearGradient colors={['#10B981', '#059669']} style={s.successBtn}>
               <Feather name="arrow-right" size={16} color="#fff" />
-              <Text style={styles.successBtnTxt}>Go to Dashboard</Text>
+              <Text style={s.successBtnTxt}>Go to Dashboard</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -104,221 +92,221 @@ export default function SignUpScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-      <LinearGradient colors={['#07002E', '#100840', '#0A1550']} style={StyleSheet.absoluteFill} />
-      <View style={[styles.orb, styles.orb1]} />
-      <View style={[styles.orb, styles.orb2]} />
+      <LinearGradient colors={['#060C1D', '#0B1429', '#111B3E']} style={StyleSheet.absoluteFill} />
+      <View style={[s.blob, s.blob1]} />
+      <View style={[s.blob, s.blob2]} />
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={s.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          showsHorizontalScrollIndicator={false}
           bounces={false}
         >
-          {/* ── Top bar ── */}
-          <Pressable style={styles.backRow} onPress={() => router.back()}>
-            <LinearGradient colors={['rgba(37,99,235,0.3)', 'rgba(79,70,229,0.1)']} style={styles.backIconWrap}>
+          <Pressable style={s.backRow} onPress={() => router.back()}>
+            <View style={s.backIconWrap}>
               <Feather name="arrow-left" size={16} color="#60A5FA" />
-            </LinearGradient>
-            <Text style={styles.backTxt}>Back to Sign In</Text>
+            </View>
+            <Text style={s.backTxt}>Back to Sign In</Text>
           </Pressable>
 
-          {/* ── Header ── */}
-          <View style={styles.header}>
-            <LinearGradient colors={['#10B981', '#059669', '#0284C7']} style={styles.headerIconWrap}>
-              <Feather name="user-plus" size={26} color="#fff" />
+          <View style={s.header}>
+            <LinearGradient colors={['#10B981','#059669','#0284C7']} style={s.headerIcon}>
+              <Feather name="user-plus" size={24} color="#fff" />
             </LinearGradient>
-            <Text style={styles.headerTitle}>Create Citizen Account</Text>
-            <Text style={styles.headerSub}>Register to access DNP360 municipal services</Text>
+            <Text style={s.headerTitle}>Create Citizen Account</Text>
+            <Text style={s.headerSub}>Register to access DNP360 municipal services</Text>
           </View>
 
-          {/* ── Form ── */}
-          <View style={styles.card}>
-            <LinearGradient
-              colors={['rgba(16,185,129,0.2)', 'rgba(5,150,105,0.06)', 'transparent']}
-              style={styles.cardGlow}
-            />
-
-            <View style={styles.sectionLabel}>
-              <LinearGradient colors={['#2563EB', '#6366F1']} style={styles.sectionDot} />
-              <Text style={styles.sectionLabelText}>Personal Information</Text>
+          <View style={s.card}>
+            <View style={s.sectionRow}>
+              <View style={s.sectionDot} />
+              <Text style={s.sectionTxt}>PERSONAL INFORMATION</Text>
             </View>
 
-            {FIELDS.map(f => (
-              <View key={f.key} style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>
-                  {f.label}{f.required ? <Text style={{ color: '#F87171' }}> *</Text> : <Text style={{ color: '#4B5563' }}> (optional)</Text>}
-                </Text>
-                <View style={styles.inputWrap}>
-                  <LinearGradient colors={['#10B981', '#059669']} style={styles.inputIcon}>
-                    <Feather name={f.icon as any} size={12} color="#fff" />
-                  </LinearGradient>
-                  <TextInput
-                    style={styles.input}
-                    placeholder={f.ph}
-                    placeholderTextColor="#374151"
-                    value={values[f.key]}
-                    onChangeText={setters[f.key]}
-                    keyboardType={f.kbType as any}
-                    autoCapitalize={f.caps as any}
-                    maxLength={'max' in f ? f.max : undefined}
-                  />
-                </View>
-              </View>
-            ))}
-
-            <View style={styles.divider} />
-
-            <View style={styles.sectionLabel}>
-              <LinearGradient colors={['#7C3AED', '#6366F1']} style={styles.sectionDot} />
-              <Text style={styles.sectionLabelText}>Security</Text>
-            </View>
-
-            {/* Password */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Password <Text style={{ color: '#F87171' }}>*</Text></Text>
-              <View style={styles.inputWrap}>
-                <LinearGradient colors={['#7C3AED', '#6366F1']} style={styles.inputIcon}>
-                  <Feather name="lock" size={12} color="#fff" />
-                </LinearGradient>
+            <View style={s.fieldGroup}>
+              <Text style={s.label}>Full Name <Text style={s.req}>*</Text></Text>
+              <View style={s.inputBox}>
+                <Feather name="user" size={15} color="#10B981" style={s.inputIcon} />
                 <TextInput
-                  style={[styles.input, { flex: 1 }]}
+                  style={s.input}
+                  placeholder="Your full name"
+                  placeholderTextColor="#1E3A2F"
+                  autoCapitalize="words"
+                  value={name}
+                  onChangeText={setName}
+                />
+              </View>
+            </View>
+
+            <View style={s.fieldGroup}>
+              <Text style={s.label}>Email Address <Text style={s.req}>*</Text></Text>
+              <View style={s.inputBox}>
+                <Feather name="mail" size={15} color="#10B981" style={s.inputIcon} />
+                <TextInput
+                  style={s.input}
+                  placeholder="your@email.com"
+                  placeholderTextColor="#1E3A2F"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={email}
+                  onChangeText={setEmail}
+                />
+              </View>
+            </View>
+
+            <View style={s.fieldGroup}>
+              <Text style={s.label}>Mobile Number <Text style={s.req}>*</Text></Text>
+              <View style={s.inputBox}>
+                <Feather name="smartphone" size={15} color="#10B981" style={s.inputIcon} />
+                <TextInput
+                  style={s.input}
+                  placeholder="10-digit mobile number"
+                  placeholderTextColor="#1E3A2F"
+                  keyboardType="phone-pad"
+                  value={mobile}
+                  onChangeText={setMobile}
+                  maxLength={10}
+                />
+              </View>
+            </View>
+
+            <View style={s.fieldGroup}>
+              <Text style={s.label}>Address <Text style={s.opt}>(optional)</Text></Text>
+              <View style={s.inputBox}>
+                <Feather name="map-pin" size={15} color="#10B981" style={s.inputIcon} />
+                <TextInput
+                  style={s.input}
+                  placeholder="Ward / Area, Daudnagar"
+                  placeholderTextColor="#1E3A2F"
+                  autoCapitalize="sentences"
+                  value={address}
+                  onChangeText={setAddress}
+                />
+              </View>
+            </View>
+
+            <View style={s.divider} />
+
+            <View style={s.sectionRow}>
+              <View style={[s.sectionDot, { backgroundColor: '#7C3AED' }]} />
+              <Text style={s.sectionTxt}>SECURITY</Text>
+            </View>
+
+            <View style={s.fieldGroup}>
+              <Text style={s.label}>Password <Text style={s.req}>*</Text></Text>
+              <View style={s.inputBox}>
+                <Feather name="lock" size={15} color="#7C3AED" style={s.inputIcon} />
+                <TextInput
+                  style={[s.input, { flex: 1 }]}
                   placeholder="Min. 6 characters"
-                  placeholderTextColor="#374151"
+                  placeholderTextColor="#2A1E40"
                   secureTextEntry={!showPw}
                   value={password}
                   onChangeText={setPassword}
                 />
-                <Pressable onPress={() => setShowPw(p => !p)} hitSlop={8} style={{ padding: 4 }}>
-                  <Feather name={showPw ? 'eye-off' : 'eye'} size={14} color="#4B5563" />
+                <Pressable onPress={() => setShowPw(p => !p)} style={s.eyeBtn}>
+                  <Feather name={showPw ? 'eye-off' : 'eye'} size={15} color="#7C3AED" />
                 </Pressable>
               </View>
             </View>
 
-            {/* Confirm password */}
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Confirm Password <Text style={{ color: '#F87171' }}>*</Text></Text>
-              <View style={[styles.inputWrap, confirmPassword && confirmPassword !== password && { borderColor: '#F87171' }]}>
-                <LinearGradient
-                  colors={confirmPassword && confirmPassword !== password ? ['#EF4444', '#B91C1C'] : ['#7C3AED', '#6366F1']}
-                  style={styles.inputIcon}
-                >
-                  <Feather name="lock" size={12} color="#fff" />
-                </LinearGradient>
+            <View style={s.fieldGroup}>
+              <Text style={s.label}>Confirm Password <Text style={s.req}>*</Text></Text>
+              <View style={[s.inputBox, confirmPassword && confirmPassword !== password && { borderColor: '#EF4444' }]}>
+                <Feather name="lock" size={15} color={confirmPassword && confirmPassword !== password ? '#EF4444' : '#7C3AED'} style={s.inputIcon} />
                 <TextInput
-                  style={[styles.input, { flex: 1 }]}
+                  style={[s.input, { flex: 1 }]}
                   placeholder="Re-enter password"
-                  placeholderTextColor="#374151"
+                  placeholderTextColor="#2A1E40"
                   secureTextEntry={!showCPw}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                 />
-                <Pressable onPress={() => setShowCPw(p => !p)} hitSlop={8} style={{ padding: 4 }}>
-                  <Feather name={showCPw ? 'eye-off' : 'eye'} size={14} color="#4B5563" />
+                <Pressable onPress={() => setShowCPw(p => !p)} style={s.eyeBtn}>
+                  <Feather name={showCPw ? 'eye-off' : 'eye'} size={15} color="#7C3AED" />
                 </Pressable>
               </View>
               {confirmPassword && confirmPassword !== password && (
-                <Text style={styles.errorTxt}>⚠ Passwords do not match</Text>
+                <Text style={s.errorTxt}>Passwords do not match</Text>
               )}
             </View>
 
-            {/* Submit */}
             <TouchableOpacity
               onPress={handleSignUp}
               disabled={loading}
               activeOpacity={0.87}
-              style={[styles.btnWrap, loading && { opacity: 0.65 }]}
+              style={[s.btnWrap, loading && { opacity: 0.65 }]}
             >
-              <LinearGradient colors={['#10B981', '#059669']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.btn}>
-                {loading ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="user-check" size={15} color="#fff" />}
-                <Text style={styles.btnTxt}>{loading ? 'Creating Account…' : 'Create Citizen Account'}</Text>
+              <LinearGradient colors={['#10B981','#059669']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.btn}>
+                {loading ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="user-check" size={17} color="#fff" />}
+                <Text style={s.btnTxt}>{loading ? 'Creating Account…' : 'Create Citizen Account'}</Text>
               </LinearGradient>
             </TouchableOpacity>
 
-            {/* Note */}
-            <View style={styles.noteBox}>
-              <Feather name="shield" size={13} color="#6366F1" />
-              <Text style={styles.noteTxt}>
-                Only Citizens can self-register. Safai Karmis, Officials & Admins authenticate via secret code issued by the Admin.
-              </Text>
+            <View style={s.noteBox}>
+              <Feather name="info" size={12} color="#6366F1" />
+              <Text style={s.noteTxt}>Only citizens can self-register. Staff authenticate via secret code issued by Admin.</Text>
             </View>
           </View>
 
-          <Text style={styles.version}>DNP360 v1.0 · Bihar, India · Govt. Trusted</Text>
+          <Text style={s.version}>DNP360 · Bihar, India · Govt. Trusted</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  orb: { position: 'absolute', borderRadius: 999 },
-  orb1: { width: 240, height: 240, backgroundColor: '#10B98115', top: -60, right: -60 },
-  orb2: { width: 180, height: 180, backgroundColor: '#6366F110', bottom: 80, left: -50 },
+const s = StyleSheet.create({
+  blob: { position: 'absolute', borderRadius: 999 },
+  blob1: { width: 240, height: 240, backgroundColor: '#10B9810D', top: -60, right: -60 },
+  blob2: { width: 180, height: 180, backgroundColor: '#7C3AED0A', bottom: 80, left: -50 },
 
-  scroll: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32 },
+  scroll: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
 
-  successScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 18, padding: 32 },
-  successRing: { padding: 6, borderRadius: 60, borderWidth: 2, borderColor: 'rgba(16,185,129,0.4)' },
-  successIconWrap: { width: 90, height: 90, borderRadius: 45, justifyContent: 'center', alignItems: 'center' },
-  successTitle: { color: '#fff', fontSize: 28, fontFamily: 'Inter_700Bold' },
+  successWrap: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 18, padding: 32 },
+  successRing: { padding: 7, borderRadius: 64, borderWidth: 2, borderColor: 'rgba(16,185,129,0.3)' },
+  successIcon: { width: 88, height: 88, borderRadius: 44, justifyContent: 'center', alignItems: 'center' },
+  successTitle: { color: '#F1F5F9', fontSize: 28, fontFamily: 'Inter_700Bold' },
   successName: { color: '#34D399', fontSize: 18, fontFamily: 'Inter_600SemiBold' },
-  successMsg: { color: '#6B7280', fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 22 },
+  successMsg: { color: '#475569', fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 22 },
+  successBtnWrap: { borderRadius: 14, overflow: 'hidden' },
   successBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 28 },
   successBtnTxt: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },
 
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 },
-  backIconWrap: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(37,99,235,0.3)' },
+  backIconWrap: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(37,99,235,0.12)', borderWidth: 1, borderColor: 'rgba(37,99,235,0.2)' },
   backTxt: { color: '#60A5FA', fontSize: 13, fontFamily: 'Inter_500Medium' },
 
-  header: { alignItems: 'center', gap: 10, marginBottom: 20 },
-  headerIconWrap: { width: 72, height: 72, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { color: '#FFFFFF', fontSize: 22, fontFamily: 'Inter_700Bold' },
-  headerSub: { color: '#4B5563', fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+  header: { alignItems: 'center', gap: 10, marginBottom: 22 },
+  headerIcon: { width: 68, height: 68, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { color: '#F1F5F9', fontSize: 22, fontFamily: 'Inter_700Bold' },
+  headerSub: { color: '#475569', fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center' },
 
-  card: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    padding: 20,
-    gap: 12,
-    marginBottom: 20,
-    overflow: 'hidden',
-  },
-  cardGlow: { position: 'absolute', top: 0, left: 0, right: 0, height: 100, borderRadius: 24 },
+  card: { backgroundColor: 'rgba(255,255,255,0.035)', borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', padding: 18, gap: 13, marginBottom: 20 },
 
-  sectionLabel: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionDot: { width: 16, height: 16, borderRadius: 5 },
-  sectionLabelText: { color: '#9CA3AF', fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 },
-
-  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.06)' },
+  sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionDot: { width: 14, height: 14, borderRadius: 4, backgroundColor: '#10B981' },
+  sectionTxt: { color: '#64748B', fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 1 },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)' },
 
   fieldGroup: { gap: 6 },
-  fieldLabel: { color: '#6B7280', fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  label: { color: '#64748B', fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  req: { color: '#F87171' },
+  opt: { color: '#374151', fontFamily: 'Inter_400Regular' },
 
-  inputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 12,
-    paddingVertical: 2,
-  },
-  inputIcon: { width: 28, height: 28, borderRadius: 8, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
-  input: { flex: 1, color: '#FFFFFF', fontSize: 14, fontFamily: 'Inter_400Regular', paddingVertical: 12 },
+  inputBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 13, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', paddingHorizontal: 13, paddingVertical: 1 },
+  inputIcon: { marginRight: 4 },
+  input: { flex: 1, color: '#E2E8F0', fontSize: 14, fontFamily: 'Inter_400Regular', paddingVertical: 13 },
+  eyeBtn: { padding: 6 },
   errorTxt: { color: '#F87171', fontSize: 10, fontFamily: 'Inter_400Regular' },
 
   btnWrap: { borderRadius: 14, overflow: 'hidden', marginTop: 4 },
-  btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 15 },
+  btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingVertical: 16 },
   btnTxt: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Inter_700Bold' },
 
-  noteBox: { flexDirection: 'row', gap: 8, backgroundColor: 'rgba(99,102,241,0.1)', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: 'rgba(99,102,241,0.2)', alignItems: 'flex-start' },
-  noteTxt: { flex: 1, color: '#A5B4FC', fontSize: 11, fontFamily: 'Inter_400Regular', lineHeight: 17 },
+  noteBox: { flexDirection: 'row', gap: 8, backgroundColor: 'rgba(99,102,241,0.08)', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: 'rgba(99,102,241,0.15)', alignItems: 'flex-start' },
+  noteTxt: { flex: 1, color: '#818CF8', fontSize: 11, fontFamily: 'Inter_400Regular', lineHeight: 17 },
 
-  version: { textAlign: 'center', color: '#374151', fontSize: 9, fontFamily: 'Inter_400Regular' },
+  version: { textAlign: 'center', color: '#1E2A40', fontSize: 9, fontFamily: 'Inter_400Regular' },
 });

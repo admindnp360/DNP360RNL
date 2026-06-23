@@ -12,6 +12,8 @@ export interface User {
   address?: string;
   isActive?: boolean;
   createdAt?: string;
+  isSuperAdmin?: boolean;
+  cannotBeDeleted?: boolean;
 }
 
 export type ComplaintStatus = 'submitted' | 'assigned' | 'in_progress' | 'resolved';

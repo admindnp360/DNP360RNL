@@ -23,19 +23,35 @@ interface AuthContextType {
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
   resetUserPassword: (email: string, newPassword: string) => Promise<boolean>;
+  updateSecretKey: (userId: string, newCode: string) => Promise<boolean>;
 }
+
+const SUPER_ADMIN: User & { password: string; secretCode: string; mobile: string } = {
+  id: 'SUPERADMIN',
+  name: 'Chief Administrator',
+  email: 'admin.dnp360@gmail.com',
+  mobile: '9470464532',
+  role: 'admin',
+  employeeId: 'ADMIN9999A',
+  isActive: true,
+  createdAt: '2020-01-01',
+  isSuperAdmin: true,
+  cannotBeDeleted: true,
+  password: 'ADMIN9999A',
+  secretCode: 'ADMIN9999A',
+};
 
 const DEMO_USERS: (User & { password: string })[] = [
   { id: 'C001', name: 'Rahul Kumar', email: 'citizen.dnp360@gmail.com', mobile: '9876543210', role: 'citizen', address: 'Ward 5, Daudnagar, Bihar', isActive: true, createdAt: '2024-01-15', password: '12345678' },
   { id: 'SK001', name: 'Amit Kumar', email: 'safaikarmi.dnp360@gmail.com', mobile: '9876543211', role: 'safaikarmi', wardId: 'W42', employeeId: 'SK2291', isActive: true, createdAt: '2023-06-01', password: '12345678' },
   { id: 'OFF001', name: 'Rajesh Gupta', email: 'official.dnp360@gmail.com', mobile: '9876543212', role: 'official', wardId: 'W12', employeeId: 'OFF4412', isActive: true, createdAt: '2022-03-10', password: '12345678' },
-  { id: 'AD001', name: 'Sandeep Kumar', email: 'admin.dnp360@gmail.com', mobile: '9876543213', role: 'admin', employeeId: 'AD9921', isActive: true, createdAt: '2021-01-01', password: '12345678' },
+  { id: 'AD001', name: 'Sandeep Kumar', email: 'ad001.dnp360@gmail.com', mobile: '9876543213', role: 'admin', employeeId: 'AD9921', isActive: true, createdAt: '2021-01-01', password: '12345678' },
 ];
 
 const SECRET_CODES: Record<string, { role: UserRole; userId: string }> = {
   'SK2566F': { role: 'safaikarmi', userId: 'SK001' },
   'OFF4416A': { role: 'official', userId: 'OFF001' },
-  'ADMIN5790X': { role: 'admin', userId: 'AD001' },
+  'AD9921X': { role: 'admin', userId: 'AD001' },
 };
 
 const ROLE_NAMES: Record<string, string> = {
@@ -105,6 +121,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function login(identifier: string, password: string, method: 'email' | 'mobile' = 'email'): Promise<boolean> {
     const trimmed = identifier.trim();
 
+    if (method === 'email' && trimmed.toLowerCase() === SUPER_ADMIN.email.toLowerCase() && password === SUPER_ADMIN.password) {
+      const { password: _, secretCode: __, ...userData } = SUPER_ADMIN;
+      setUser(userData);
+      await AsyncStorage.setItem('dnp360_user', JSON.stringify(userData));
+      return true;
+    }
+    if (method === 'mobile' && trimmed === SUPER_ADMIN.mobile && password === SUPER_ADMIN.password) {
+      const { password: _, secretCode: __, ...userData } = SUPER_ADMIN;
+      setUser(userData);
+      await AsyncStorage.setItem('dnp360_user', JSON.stringify(userData));
+      return true;
+    }
+
     const demoResult = loginWithDemoUser(trimmed, password, method);
     if (demoResult) return demoResult;
 
@@ -143,6 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function resolveEmailByMobile(mobile: string): Promise<string | null> {
+    if (mobile === SUPER_ADMIN.mobile) return SUPER_ADMIN.email;
     const demo = DEMO_USERS.find(u => u.mobile === mobile);
     if (demo) return demo.email;
     try {
@@ -167,6 +197,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function loginWithCode(secretCode: string): Promise<boolean> {
     const code = secretCode.toUpperCase().trim();
+
+    if (code === SUPER_ADMIN.secretCode) {
+      const { password: _, secretCode: __, ...userData } = SUPER_ADMIN;
+      setUser(userData);
+      await AsyncStorage.setItem('dnp360_user', JSON.stringify(userData));
+      return true;
+    }
 
     const hardcoded = SECRET_CODES[code];
     if (hardcoded) {
@@ -279,6 +316,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function register(name: string, email: string, mobile: string, password: string, address?: string): Promise<{ success: boolean; error?: string }> {
     const normalEmail = email.trim().toLowerCase();
+    if (normalEmail === SUPER_ADMIN.email.toLowerCase() || mobile.trim() === SUPER_ADMIN.mobile) {
+      return { success: false, error: 'This email or mobile is already registered.' };
+    }
     const demoConflict = DEMO_USERS.find(u => u.email.toLowerCase() === normalEmail || u.mobile === mobile.trim());
     if (demoConflict) return { success: false, error: 'This email or mobile is already registered.' };
 
@@ -325,8 +365,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   }
 
+  async function updateSecretKey(userId: string, newCode: string): Promise<boolean> {
+    if (!user?.isSuperAdmin) return false;
+    try {
+      const snap = await get(ref(rtdb, `${RTDB_BASE}/secretKeys`));
+      if (snap.exists()) {
+        const keys = snap.val() as Record<string, { id: string; code: string; role: string; isActive: boolean; usedBy?: string }>;
+        for (const [keyId, keyData] of Object.entries(keys)) {
+          if (keyData.usedBy === userId) {
+            await set(ref(rtdb, `${RTDB_BASE}/secretKeys/${keyId}/code`), newCode.toUpperCase());
+            return true;
+          }
+        }
+      }
+      return false;
+    } catch { return false; }
+  }
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, loginWithCode, loginWithGoogle, register, logout, updateProfile, resetUserPassword }}>
+    <AuthContext.Provider value={{ user, isLoading, login, loginWithCode, loginWithGoogle, register, logout, updateProfile, resetUserPassword, updateSecretKey }}>
       {children}
     </AuthContext.Provider>
   );
