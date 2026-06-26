@@ -5,6 +5,7 @@ import {
   doc,
   getDocs,
   getDoc,
+  onSnapshot,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -242,34 +243,29 @@ function seedHouseVisits(): HouseVisit[] {
   return visits;
 }
 
-async function fsLoadCollection<T extends { id: string }>(col: string, seed: T[]): Promise<T[]> {
+async function seedIfEmpty<T extends { id: string }>(col: string, seed: T[]): Promise<void> {
+  if (seed.length === 0) return;
   try {
     const snap = await getDocs(collection(db, col));
-    if (!snap.empty) {
-      return snap.docs.map(d => ({ id: d.id, ...d.data() }) as T);
-    }
+    if (!snap.empty) return;
     const b = writeBatch(db);
     for (const item of seed) {
       const { id, ...rest } = item as any;
       b.set(doc(db, col, id), clean({ ...rest, _createdAt: serverTimestamp() }));
     }
     await b.commit();
-    return seed;
   } catch {
-    const stored = await AsyncStorage.getItem(`dnp360_${col}`).catch(() => null);
-    return stored ? JSON.parse(stored) : seed;
+    // offline — Firestore will sync when connection is restored
   }
 }
 
-async function fsLoadDoc<T>(col: string, docId: string, seed: T): Promise<T> {
+async function seedDocIfEmpty<T>(col: string, docId: string, seed: T): Promise<void> {
   try {
     const snap = await getDoc(doc(db, col, docId));
-    if (snap.exists()) return snap.data() as T;
+    if (snap.exists()) return;
     await setDoc(doc(db, col, docId), clean({ ...(seed as any), _createdAt: serverTimestamp() }));
-    return seed;
   } catch {
-    const stored = await AsyncStorage.getItem(`dnp360_${col}_${docId}`).catch(() => null);
-    return stored ? JSON.parse(stored) : seed;
+    // offline fallback
   }
 }
 
@@ -345,26 +341,55 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [importHistory, setImportHistory] = useState<ImportHistory[]>([]);
 
   useEffect(() => {
+    const unsubscribers: (() => void)[] = [];
+    let active = true;
+
     (async () => {
+      // 1 — version check (wipes stale data if schema changed)
       await checkVersion();
-      const [c, h, w, g, n, a, v, u, k, s, r, ih] = await Promise.all([
-        fsLoadCollection<Complaint>('complaints', SEED_COMPLAINTS),
-        fsLoadCollection<House>('houses', SEED_HOUSES),
-        fsLoadCollection<Ward>('wards', SEED_WARDS),
-        fsLoadCollection<Group>('groups', SEED_GROUPS),
-        fsLoadCollection<Notice>('notices', SEED_NOTICES),
-        fsLoadCollection<Attendance>('attendance', seedAttendance()),
-        fsLoadCollection<HouseVisit>('houseVisits', seedHouseVisits()),
-        fsLoadCollection<User>('users', SEED_USERS),
-        fsLoadCollection<SecretKey>('secretKeys', SEED_KEYS),
-        fsLoadDoc<SupportDetails>('settings', 'support', DEFAULT_SUPPORT),
-        fsLoadCollection<PasswordResetRequest>('passwordResetRequests', []),
-        fsLoadCollection<ImportHistory>('importHistory', []),
+
+      // 2 — seed each collection once if Firestore is empty
+      await Promise.all([
+        seedIfEmpty('complaints',            SEED_COMPLAINTS),
+        seedIfEmpty('houses',                SEED_HOUSES),
+        seedIfEmpty('wards',                 SEED_WARDS),
+        seedIfEmpty('groups',                SEED_GROUPS),
+        seedIfEmpty('notices',               SEED_NOTICES),
+        seedIfEmpty('attendance',            seedAttendance()),
+        seedIfEmpty('houseVisits',           seedHouseVisits()),
+        seedIfEmpty('users',                 SEED_USERS),
+        seedIfEmpty('secretKeys',            SEED_KEYS),
+        seedDocIfEmpty('settings', 'support', DEFAULT_SUPPORT),
       ]);
-      setComplaints(c); setHouses(h); setWards(w); setGroups(g); setNotices(n);
-      setAttendance(a); setHouseVisits(v); setUsers(u); setSecretKeys(k);
-      setSupportDetails(s); setPasswordResetRequests(r); setImportHistory(ih);
+
+      if (!active) return;
+
+      // 3 — real-time listeners (fire immediately with cached data, then live updates)
+      const snap2arr = <T>(snap: any) =>
+        snap.docs.map((d: any) => ({ id: d.id, ...d.data() }) as T);
+
+      unsubscribers.push(
+        onSnapshot(collection(db, 'complaints'),            s => setComplaints(snap2arr<Complaint>(s))),
+        onSnapshot(collection(db, 'houses'),               s => setHouses(snap2arr<House>(s))),
+        onSnapshot(collection(db, 'wards'),                s => setWards(snap2arr<Ward>(s))),
+        onSnapshot(collection(db, 'groups'),               s => setGroups(snap2arr<Group>(s))),
+        onSnapshot(collection(db, 'notices'),              s => setNotices(snap2arr<Notice>(s))),
+        onSnapshot(collection(db, 'attendance'),           s => setAttendance(snap2arr<Attendance>(s))),
+        onSnapshot(collection(db, 'houseVisits'),          s => setHouseVisits(snap2arr<HouseVisit>(s))),
+        onSnapshot(collection(db, 'users'),                s => setUsers(snap2arr<User>(s))),
+        onSnapshot(collection(db, 'secretKeys'),           s => setSecretKeys(snap2arr<SecretKey>(s))),
+        onSnapshot(collection(db, 'passwordResetRequests'),s => setPasswordResetRequests(snap2arr<PasswordResetRequest>(s))),
+        onSnapshot(collection(db, 'importHistory'),        s => setImportHistory(snap2arr<ImportHistory>(s))),
+        onSnapshot(doc(db, 'settings', 'support'),         s => {
+          if (s.exists()) setSupportDetails(s.data() as SupportDetails);
+        }),
+      );
     })();
+
+    return () => {
+      active = false;
+      unsubscribers.forEach(u => u());
+    };
   }, []);
 
   async function addComplaint(c: Omit<Complaint, 'id' | 'createdAt' | 'updatedAt'>) {
