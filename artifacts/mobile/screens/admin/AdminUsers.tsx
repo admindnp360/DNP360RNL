@@ -629,7 +629,7 @@ export default function AdminUsers() {
                     <>
                       <SectionHeading icon="info" label="Account Details" color={grad[0]} />
 
-                      <InfoRow icon="hash"        label="User ID"        value={profileUser.id}               colors={colors} accentColor={grad[0]} mono />
+                      <InfoRow icon="hash"        label="User ID"        value={profileUser.id}               colors={colors} accentColor={grad[0]} mono copyable />
                       {profileUser.employeeId && (
                         <InfoRow icon="briefcase" label="Employee ID"    value={profileUser.employeeId}       colors={colors} accentColor={grad[0]} mono />
                       )}
@@ -745,29 +745,46 @@ const sh = StyleSheet.create({
 });
 
 function InfoRow({
-  icon, label, value, colors, accentColor, mono = false,
+  icon, label, value, colors, accentColor, mono = false, copyable = false,
 }: {
   icon: string; label: string; value: string;
-  colors: any; accentColor: string; mono?: boolean;
+  colors: any; accentColor: string; mono?: boolean; copyable?: boolean;
 }) {
-  return (
-    <View style={[ir.row, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={[ir.iconBox, { backgroundColor: accentColor + '15' }]}>
-        <Feather name={icon as any} size={14} color={accentColor} />
+  const [copied, setCopied] = React.useState(false);
+
+  async function handleCopy() {
+    await Clipboard.setStringAsync(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  const inner = (
+    <View style={[ir.row, { backgroundColor: copied ? '#10B98110' : colors.card, borderColor: copied ? '#10B98140' : colors.border }]}>
+      <View style={[ir.iconBox, { backgroundColor: copied ? '#10B98122' : accentColor + '15' }]}>
+        <Feather name={copied ? 'check' : icon as any} size={14} color={copied ? '#10B981' : accentColor} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[ir.label, { color: colors.mutedForeground }]}>{label}</Text>
-        <Text style={[ir.value, { color: colors.text, fontFamily: mono ? 'Inter_700Bold' : 'Inter_500Medium' }]} numberOfLines={2}>
+        <Text style={[ir.label, { color: copied ? '#10B981' : colors.mutedForeground }]}>{copied ? 'Copied!' : label}</Text>
+        <Text style={[ir.value, { color: copied ? '#10B981' : colors.text, fontFamily: mono ? 'Inter_700Bold' : 'Inter_500Medium' }]} numberOfLines={2}>
           {value}
         </Text>
       </View>
+      {copyable && !copied && (
+        <View style={ir.copyHint}>
+          <Feather name="copy" size={12} color={accentColor} />
+        </View>
+      )}
     </View>
   );
+
+  if (!copyable) return inner;
+  return <TouchableOpacity activeOpacity={0.75} onPress={handleCopy}>{inner}</TouchableOpacity>;
 }
 
 const ir = StyleSheet.create({
   row:     { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, borderWidth: 1, padding: 12 },
   iconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  copyHint: { width: 28, height: 28, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.06)' },
   label:   { fontSize: 10, fontFamily: 'Inter_500Medium', marginBottom: 2 },
   value:   { fontSize: 14, lineHeight: 19 },
 });
