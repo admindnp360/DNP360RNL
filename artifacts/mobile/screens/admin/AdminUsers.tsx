@@ -797,21 +797,21 @@ const s = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', padding: 0 },
 
   /* tabs */
-  tabRow:  { flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1 },
+  tabRow:  { flexDirection: 'row', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1 },
   tabItem: { flex: 1 },
   tabPillActive: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 5, borderRadius: 99, paddingVertical: 8, paddingHorizontal: 6,
+    gap: 4, borderRadius: 99, paddingVertical: 7, paddingHorizontal: 4,
   },
-  tabLabelActive: { color: '#fff', fontSize: 11, fontFamily: 'Inter_700Bold' },
-  tabCountBubble: { backgroundColor: 'rgba(255,255,255,0.28)', borderRadius: 99, paddingHorizontal: 5, paddingVertical: 1 },
-  tabCountText: { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
+  tabLabelActive: { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
+  tabCountBubble: { backgroundColor: 'rgba(255,255,255,0.28)', borderRadius: 99, paddingHorizontal: 4, paddingVertical: 1 },
+  tabCountText: { color: '#fff', fontSize: 8, fontFamily: 'Inter_700Bold' },
   tabPillInactive: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 5, borderRadius: 99, paddingVertical: 8, paddingHorizontal: 6, borderWidth: 1,
+    gap: 4, borderRadius: 99, paddingVertical: 7, paddingHorizontal: 4, borderWidth: 1,
   },
-  tabLabelInactive: { fontSize: 11, fontFamily: 'Inter_500Medium' },
-  tabCountInactive: { fontSize: 9, fontFamily: 'Inter_600SemiBold' },
+  tabLabelInactive: { fontSize: 9, fontFamily: 'Inter_500Medium' },
+  tabCountInactive: { fontSize: 8, fontFamily: 'Inter_600SemiBold' },
 
   /* table head */
   tableHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 7, borderBottomWidth: 1 },
