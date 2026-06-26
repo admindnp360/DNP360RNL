@@ -29,7 +29,7 @@ const WARD_GRADS = [
 const GROUP_COLORS = ['#10B981', '#0EA5E9', '#F97316', '#8B5CF6', '#EC4899', '#EF4444', '#F59E0B', '#06B6D4'];
 
 export default function SuperAdminHouseDB() {
-  const { houses, wards, groups, users, addHouse, updateHouse, deleteHouse, addGroup, deleteGroup, addWard, updateWard, assignWorkerToWard, syncStatus } = useAppData();
+  const { houses, wards, groups, users, addHouse, updateHouse, deleteHouse, addGroup, updateGroup, deleteGroup, addWard, updateWard, deleteWard, assignWorkerToWard, syncStatus } = useAppData();
   const { user } = useAuth();
   const colors = useColors();
   const { showAlert } = useAlert();
@@ -51,6 +51,14 @@ export default function SuperAdminHouseDB() {
   const [showWorkerModal, setShowWorkerModal] = useState(false);
   const [workerModalWard, setWorkerModalWard] = useState<Ward | null>(null);
   const [workerSearch, setWorkerSearch] = useState('');
+  // Edit ward
+  const [showEditWardModal, setShowEditWardModal] = useState(false);
+  const [editingWard, setEditingWard] = useState<Ward | null>(null);
+  const [editWardForm, setEditWardForm] = useState({ name: '', area: '' });
+  // Edit group
+  const [showEditGroupModal, setShowEditGroupModal] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<Group | null>(null);
+  const [editGroupForm, setEditGroupForm] = useState({ name: '', description: '' });
 
   // Sync status pulse animation
   const syncPulse = useRef(new Animated.Value(1)).current;
@@ -232,6 +240,70 @@ export default function SuperAdminHouseDB() {
     );
   }
 
+  function openEditWard(ward: Ward) {
+    setEditingWard(ward);
+    setEditWardForm({ name: ward.name, area: ward.area || '' });
+    setShowEditWardModal(true);
+  }
+
+  async function handleSaveEditWard() {
+    if (!editingWard) return;
+    if (!editWardForm.name.trim()) {
+      showAlert('Missing', 'Ward name is required.', undefined, 'warning');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateWard(editingWard.id, { name: editWardForm.name.trim(), area: editWardForm.area.trim() || editWardForm.name.trim() });
+      setShowEditWardModal(false);
+      setEditingWard(null);
+      showAlert('Updated', 'Ward details saved.', undefined, 'success');
+    } finally { setSaving(false); }
+  }
+
+  async function handleDeleteWard(ward: Ward) {
+    const wHouses = houses.filter(h => h.wardId === ward.id).length;
+    if (wHouses > 0) {
+      showAlert(
+        'Cannot Delete Ward',
+        `Ward ${ward.wardNumber} has ${wHouses} house(s). Remove all houses from this ward before deleting it.`,
+        undefined,
+        'warning'
+      );
+      return;
+    }
+    showAlert(
+      'Delete Ward?',
+      `Ward ${ward.wardNumber} — "${ward.name}" will be permanently deleted.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteWard(ward.id) },
+      ],
+      'error'
+    );
+  }
+
+  function openEditGroup(g: Group) {
+    setEditingGroup(g);
+    setEditGroupForm({ name: g.name, description: g.description || '' });
+    setShowEditGroupModal(true);
+  }
+
+  async function handleSaveEditGroup() {
+    if (!editingGroup) return;
+    if (!editGroupForm.name.trim()) {
+      showAlert('Missing', 'Group name is required.', undefined, 'warning');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateGroup(editingGroup.id, { name: editGroupForm.name.trim(), description: editGroupForm.description.trim() });
+      setShowEditGroupModal(false);
+      setEditingGroup(null);
+      showAlert('Updated', 'Group details saved.', undefined, 'success');
+    } finally { setSaving(false); }
+  }
+
   async function handleDeleteHouse(h: House) {
     showAlert('Delete House?', `${h.ownerName} — ${h.registrationNumber}`, [
       { text: 'Cancel', style: 'cancel' },
@@ -399,7 +471,7 @@ export default function SuperAdminHouseDB() {
 
       {/* ── WARDS VIEW ── */}
       {view === 'wards' && (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 170 }}>
+        <ScrollView contentContainerStyle={{ padding: 12, gap: 6, paddingBottom: 170 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
             <Text style={[s.sectionLabel, { color: '#6366F1' }]}>All Wards</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -425,62 +497,37 @@ export default function SuperAdminHouseDB() {
             const grad = WARD_GRADS[idx % WARD_GRADS.length];
             const wHouses = houses.filter(h => h.wardId === ward.id).length;
             const wWorkers = ward.assignedWorkers ?? [];
-            const assignedWorkerUsers = safaikarmis.filter(u => wWorkers.includes(u.id));
             return (
-              <View
-                key={ward.id}
-                style={[s.wardCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-              >
-                <TouchableOpacity onPress={() => goToGroups(ward)} activeOpacity={0.85}>
-                  <View style={s.wardRow}>
-                    <LinearGradient colors={grad} style={s.wardBadge}>
-                      <Text style={s.wardBadgeText}>W{ward.wardNumber}</Text>
-                    </LinearGradient>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[s.wardName, { color: colors.text }]}>{ward.name}</Text>
-                      <Text style={[s.wardArea, { color: colors.mutedForeground }]}>{ward.area}</Text>
+              <View key={ward.id} style={[s.wardCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <TouchableOpacity onPress={() => goToGroups(ward)} activeOpacity={0.85} style={s.wardRow}>
+                  <LinearGradient colors={grad} style={s.wardBadge}>
+                    <Text style={s.wardBadgeText}>W{ward.wardNumber}</Text>
+                  </LinearGradient>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.wardName, { color: colors.text }]} numberOfLines={1}>{ward.name}</Text>
+                    <Text style={[s.wardArea, { color: colors.mutedForeground }]} numberOfLines={1}>{ward.area}</Text>
+                  </View>
+                  <View style={s.wardMeta}>
+                    <View style={s.metaPill}>
+                      <Feather name="home" size={9} color={colors.mutedForeground} />
+                      <Text style={[s.metaText, { color: colors.mutedForeground }]}>{wHouses}</Text>
                     </View>
-                    <View style={s.wardMeta}>
-                      <View style={s.metaPill}>
-                        <Feather name="home" size={10} color={colors.mutedForeground} />
-                        <Text style={[s.metaText, { color: colors.mutedForeground }]}>{wHouses}</Text>
-                      </View>
-                      <View style={s.metaPill}>
-                        <Feather name="users" size={10} color={colors.mutedForeground} />
-                        <Text style={[s.metaText, { color: colors.mutedForeground }]}>{wWorkers.length}</Text>
-                      </View>
-                      <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                    <View style={s.metaPill}>
+                      <Feather name="users" size={9} color={colors.mutedForeground} />
+                      <Text style={[s.metaText, { color: colors.mutedForeground }]}>{wWorkers.length}</Text>
                     </View>
                   </View>
                 </TouchableOpacity>
-
-                {/* Worker chips row */}
-                <View style={s.workerChipRow}>
-                  {assignedWorkerUsers.slice(0, 3).map(w => (
-                    <View key={w.id} style={[s.workerChip, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                      <View style={[s.workerAvatar, { backgroundColor: grad[0] + '30' }]}>
-                        <Text style={[s.workerAvatarText, { color: grad[0] }]}>{w.name.charAt(0).toUpperCase()}</Text>
-                      </View>
-                      <Text style={[s.workerChipName, { color: colors.text }]} numberOfLines={1}>{w.name}</Text>
-                    </View>
-                  ))}
-                  {assignedWorkerUsers.length > 3 && (
-                    <View style={[s.workerChipMore, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                      <Text style={[s.workerChipMoreText, { color: colors.mutedForeground }]}>+{assignedWorkerUsers.length - 3}</Text>
-                    </View>
-                  )}
-                  {assignedWorkerUsers.length === 0 && (
-                    <Text style={[s.noWorkerText, { color: colors.mutedForeground }]}>No workers assigned</Text>
-                  )}
-                  <TouchableOpacity
-                    style={[s.manageWorkersBtn, { backgroundColor: '#4F46E515', borderColor: '#4F46E540' }]}
-                    onPress={() => openWorkerModal(ward)}
-                    activeOpacity={0.8}
-                  >
-                    <Feather name="user-plus" size={12} color="#6366F1" />
-                    <Text style={[s.manageWorkersBtnText, { color: '#6366F1' }]}>Manage</Text>
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity style={[s.iconBtn, { backgroundColor: '#6366F110' }]} onPress={() => openWorkerModal(ward)}>
+                  <Feather name="user-plus" size={12} color="#6366F1" />
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.iconBtn, { backgroundColor: '#10B98110' }]} onPress={() => openEditWard(ward)}>
+                  <Feather name="edit-2" size={12} color="#10B981" />
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.iconBtn, { backgroundColor: '#EF444415' }]} onPress={() => handleDeleteWard(ward)}>
+                  <Feather name="trash-2" size={12} color="#EF4444" />
+                </TouchableOpacity>
+                <Feather name="chevron-right" size={13} color={colors.mutedForeground} />
               </View>
             );
           })}
@@ -512,10 +559,10 @@ export default function SuperAdminHouseDB() {
             activeOpacity={0.85}
           >
             <LinearGradient colors={['#4F46E5', '#7C3AED']} style={s.groupIconBox}>
-              <Feather name="grid" size={18} color="#fff" />
+              <Feather name="grid" size={13} color="#fff" />
             </LinearGradient>
             <View style={{ flex: 1 }}>
-              <Text style={[s.groupName, { color: colors.text }]}>All Houses in Ward {selectedWard.wardNumber}</Text>
+              <Text style={[s.groupName, { color: colors.text }]}>All Houses · Ward {selectedWard.wardNumber}</Text>
               <Text style={[s.groupDesc, { color: colors.mutedForeground }]}>
                 {houses.filter(h => h.wardId === selectedWard.id).length} houses
               </Text>
@@ -524,39 +571,36 @@ export default function SuperAdminHouseDB() {
               style={[s.addHouseBtn, { backgroundColor: '#6366F120', borderColor: '#6366F140' }]}
               onPress={() => setShowAddHouseModal(true)}
             >
-              <Feather name="plus" size={14} color="#6366F1" />
+              <Feather name="plus" size={11} color="#6366F1" />
               <Text style={[s.addHouseBtnText, { color: '#6366F1' }]}>Add</Text>
             </TouchableOpacity>
-            <Feather name="chevron-right" size={16} color={colors.mutedForeground} style={{ marginLeft: 4 }} />
+            <Feather name="chevron-right" size={13} color={colors.mutedForeground} style={{ marginLeft: 2 }} />
           </TouchableOpacity>
 
           {wardGroups.map((g, idx) => {
             const count = houses.filter(h => h.groupId === g.id).length;
             const color = g.color || GROUP_COLORS[idx % GROUP_COLORS.length];
             return (
-              <TouchableOpacity
-                key={g.id}
-                style={[s.groupCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => goToHouses(g)}
-                activeOpacity={0.85}
-              >
-                <View style={[s.groupIconBox, { backgroundColor: color }]}>
-                  <Feather name="layers" size={18} color="#fff" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.groupName, { color: colors.text }]}>{g.name}</Text>
-                  <Text style={[s.groupDesc, { color: colors.mutedForeground }]}>
-                    {count} houses{g.description ? ` · ${g.description}` : ''}
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={() => handleDeleteGroup(g)} style={s.deleteGroupBtn}>
-                  <Feather name="trash-2" size={14} color={colors.destructive} />
+              <View key={g.id} style={[s.groupCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <TouchableOpacity style={s.groupCardMain} onPress={() => goToHouses(g)} activeOpacity={0.85}>
+                  <View style={[s.groupDot, { backgroundColor: color }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.groupName, { color: colors.text }]} numberOfLines={1}>{g.name}</Text>
+                    {g.description ? <Text style={[s.groupDesc, { color: colors.mutedForeground }]} numberOfLines={1}>{g.description}</Text> : null}
+                  </View>
+                  <View style={[s.groupCountBadge, { backgroundColor: color + '20' }]}>
+                    <Feather name="home" size={9} color={color} />
+                    <Text style={[s.groupCountText, { color }]}>{count}</Text>
+                  </View>
                 </TouchableOpacity>
-                <View style={[s.groupCountBadge, { backgroundColor: color + '20' }]}>
-                  <Text style={[s.groupCountText, { color }]}>{count}</Text>
-                </View>
-                <Feather name="chevron-right" size={16} color={colors.mutedForeground} style={{ marginLeft: 4 }} />
-              </TouchableOpacity>
+                <TouchableOpacity style={[s.iconBtn, { backgroundColor: '#10B98110' }]} onPress={() => openEditGroup(g)}>
+                  <Feather name="edit-2" size={12} color="#10B981" />
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.iconBtn, { backgroundColor: '#EF444415' }]} onPress={() => handleDeleteGroup(g)}>
+                  <Feather name="trash-2" size={12} color="#EF4444" />
+                </TouchableOpacity>
+                <Feather name="chevron-right" size={13} color={colors.mutedForeground} />
+              </View>
             );
           })}
 
@@ -1069,6 +1113,76 @@ export default function SuperAdminHouseDB() {
         </SafeAreaView>
       </Modal>
 
+      {/* ── EDIT WARD MODAL ── */}
+      <Modal visible={showEditWardModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <LinearGradient colors={['#10B981', '#059669']} style={s.modalHdr}>
+            <Text style={s.modalTitle}>Edit Ward</Text>
+            <Pressable onPress={() => setShowEditWardModal(false)} style={s.closeBtn}>
+              <Feather name="x" size={20} color="#fff" />
+            </Pressable>
+          </LinearGradient>
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }}>
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Ward Name *</Text>
+            <TextInput
+              style={[s.fieldInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+              placeholder="e.g. Daudnagar Ward 1"
+              placeholderTextColor={colors.mutedForeground}
+              value={editWardForm.name}
+              onChangeText={v => setEditWardForm(p => ({ ...p, name: v }))}
+            />
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Area / Locality</Text>
+            <TextInput
+              style={[s.fieldInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+              placeholder="e.g. Station Road Area"
+              placeholderTextColor={colors.mutedForeground}
+              value={editWardForm.area}
+              onChangeText={v => setEditWardForm(p => ({ ...p, area: v }))}
+            />
+            <TouchableOpacity onPress={handleSaveEditWard} disabled={saving} activeOpacity={0.85}>
+              <LinearGradient colors={['#10B981', '#059669']} style={s.saveBtn}>
+                <Text style={s.saveBtnText}>{saving ? 'Saving…' : 'Save Changes'}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* ── EDIT GROUP MODAL ── */}
+      <Modal visible={showEditGroupModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <LinearGradient colors={['#0EA5E9', '#0284C7']} style={s.modalHdr}>
+            <Text style={s.modalTitle}>Edit Group</Text>
+            <Pressable onPress={() => setShowEditGroupModal(false)} style={s.closeBtn}>
+              <Feather name="x" size={20} color="#fff" />
+            </Pressable>
+          </LinearGradient>
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }}>
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Group Name *</Text>
+            <TextInput
+              style={[s.fieldInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+              placeholder="e.g. Main Market"
+              placeholderTextColor={colors.mutedForeground}
+              value={editGroupForm.name}
+              onChangeText={v => setEditGroupForm(p => ({ ...p, name: v }))}
+            />
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Description</Text>
+            <TextInput
+              style={[s.fieldInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+              placeholder="e.g. Near main market area..."
+              placeholderTextColor={colors.mutedForeground}
+              value={editGroupForm.description}
+              onChangeText={v => setEditGroupForm(p => ({ ...p, description: v }))}
+            />
+            <TouchableOpacity onPress={handleSaveEditGroup} disabled={saving} activeOpacity={0.85}>
+              <LinearGradient colors={['#0EA5E9', '#0284C7']} style={s.saveBtn}>
+                <Text style={s.saveBtnText}>{saving ? 'Saving…' : 'Save Changes'}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
       {/* ── ADD GROUP MODAL ── */}
       <Modal visible={showAddGroupModal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -1137,24 +1251,27 @@ const s = StyleSheet.create({
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: '#6366F115' },
   backBtnText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
   sectionLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', marginBottom: 2 },
-  wardCard: { borderRadius: 16, borderWidth: 1, padding: 14, overflow: 'hidden' },
-  wardRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  wardBadge: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  wardBadgeText: { color: '#fff', fontSize: 12, fontFamily: 'Inter_700Bold' },
-  wardName: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  wardArea: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  wardMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  metaPill: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  metaText: { fontSize: 11, fontFamily: 'Inter_500Medium' },
-  allHousesCard: { borderRadius: 16, borderWidth: 1.5, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  groupCard: { borderRadius: 16, borderWidth: 1, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  groupIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  groupName: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  groupDesc: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  groupCountBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  groupCountText: { fontSize: 13, fontFamily: 'Inter_700Bold' },
-  deleteGroupBtn: { padding: 6 },
-  addGroupBtn: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  wardCard: { borderRadius: 12, borderWidth: 1, paddingVertical: 7, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  wardRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  wardBadge: { width: 30, height: 30, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  wardBadgeText: { color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold' },
+  wardName: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  wardArea: { fontSize: 10, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  wardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  metaPill: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  metaText: { fontSize: 10, fontFamily: 'Inter_500Medium' },
+  iconBtn: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  allHousesCard: { borderRadius: 12, borderWidth: 1.5, paddingVertical: 9, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  groupCard: { borderRadius: 12, borderWidth: 1, paddingVertical: 7, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  groupCardMain: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  groupDot: { width: 10, height: 10, borderRadius: 5 },
+  groupIconBox: { width: 30, height: 30, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  groupName: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  groupDesc: { fontSize: 10, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  groupCountBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },
+  groupCountText: { fontSize: 11, fontFamily: 'Inter_700Bold' },
+  deleteGroupBtn: { padding: 4 },
+  addGroupBtn: { borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
   addGroupBtnGrad: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 16, justifyContent: 'center' },
   addGroupBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
   addHouseBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1 },
