@@ -14,12 +14,20 @@ import { useColors } from '@/hooks/useColors';
 import type { User } from '@/types';
 
 /* ─── constants ──────────────────────────────────────────────── */
-type RoleTab = 'safaikarmi' | 'official' | 'citizen';
+type RoleTab = 'all' | 'safaikarmi' | 'official' | 'citizen';
 
 const ALL_TABS: { key: RoleTab; label: string; icon: string; grad: readonly [string, string] }[] = [
-  { key: 'safaikarmi', label: 'Safai Karmi', icon: 'trash-2',  grad: ['#10B981', '#059669'] },
+  { key: 'all',        label: 'All Users',   icon: 'users',     grad: ['#6366F1', '#8B5CF6'] },
+  { key: 'safaikarmi', label: 'Safai Karmi', icon: 'trash-2',   grad: ['#10B981', '#059669'] },
   { key: 'official',   label: 'Official',    icon: 'briefcase', grad: ['#F59E0B', '#EF4444'] },
   { key: 'citizen',    label: 'Citizen',     icon: 'user',      grad: ['#0EA5E9', '#2563EB'] },
+];
+
+const STAT_CARDS: { key: 'total' | RoleTab; label: string; icon: string; grad: readonly [string, string] }[] = [
+  { key: 'total',      label: 'Total Users',  icon: 'users',     grad: ['#6366F1', '#8B5CF6'] },
+  { key: 'safaikarmi', label: 'Safai Karmi',  icon: 'trash-2',   grad: ['#10B981', '#059669'] },
+  { key: 'official',   label: 'Official',     icon: 'briefcase', grad: ['#F59E0B', '#EF4444'] },
+  { key: 'citizen',    label: 'Citizen',      icon: 'user',      grad: ['#0EA5E9', '#2563EB'] },
 ];
 
 const ROLE_GRAD: Record<string, readonly [string, string]> = {
@@ -42,7 +50,7 @@ export default function AdminUsers() {
 
   /* list state */
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<RoleTab>('safaikarmi');
+  const [activeTab, setActiveTab] = useState<RoleTab>('all');
 
   /* profile modal state */
   const [profileUser, setProfileUser] = useState<User | null>(null);
@@ -59,9 +67,27 @@ export default function AdminUsers() {
   const [showKey, setShowKey]         = useState(false);
   const [saving, setSaving]           = useState(false);
 
-  /* derived */
+  /* stats counts */
+  const countSafaikarmi = users.filter(u => u.role === 'safaikarmi').length;
+  const countOfficial   = users.filter(u => u.role === 'official').length;
+  const countCitizen    = users.filter(u => u.role === 'citizen').length;
+  const countTotal      = users.length;
+
+  function statCount(key: 'total' | RoleTab): number {
+    if (key === 'total')      return countTotal;
+    if (key === 'safaikarmi') return countSafaikarmi;
+    if (key === 'official')   return countOfficial;
+    if (key === 'citizen')    return countCitizen;
+    return 0;
+  }
+
+  /* derived list — 'all' tab shows safaikarmi + official only */
   const tabList = users
-    .filter(u => u.role === activeTab)
+    .filter(u =>
+      activeTab === 'all'
+        ? u.role === 'safaikarmi' || u.role === 'official'
+        : u.role === activeTab
+    )
     .filter(u => {
       if (!search.trim()) return true;
       const q = search.toLowerCase();
@@ -200,11 +226,32 @@ export default function AdminUsers() {
     );
   }
 
-  const currentTab = TABS.find(t => t.key === activeTab)!;
+  const currentTab = TABS.find(t => t.key === activeTab) ?? TABS[0]!;
 
   /* ── render ──────────────────────────────────────────── */
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
+
+      {/* ── Stats Cards ── */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0, backgroundColor: colors.background }}
+        contentContainerStyle={s.statsRow}
+      >
+        {STAT_CARDS.map(card => {
+          const count = statCount(card.key);
+          return (
+            <LinearGradient key={card.key} colors={card.grad} style={s.statCard}>
+              <View style={s.statIconBox}>
+                <Feather name={card.icon as any} size={16} color="rgba(255,255,255,0.85)" />
+              </View>
+              <Text style={s.statCount}>{count}</Text>
+              <Text style={s.statLabel} numberOfLines={1}>{card.label}</Text>
+            </LinearGradient>
+          );
+        })}
+      </ScrollView>
 
       {/* ── Search bar ── */}
       <View style={[s.searchWrap, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
@@ -226,11 +273,13 @@ export default function AdminUsers() {
         </View>
       </View>
 
-      {/* ── 3 Tabs ── */}
+      {/* ── 4 Tabs ── */}
       <View style={[s.tabRow, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         {TABS.map(tab => {
           const active = activeTab === tab.key;
-          const count  = users.filter(u => u.role === tab.key).length;
+          const count  = tab.key === 'all'
+            ? countSafaikarmi + countOfficial
+            : users.filter(u => u.role === tab.key).length;
           return (
             <TouchableOpacity key={tab.key} style={s.tabItem} onPress={() => setActiveTab(tab.key)} activeOpacity={0.75}>
               {active ? (
@@ -735,6 +784,13 @@ const ef = StyleSheet.create({
 
 /* ── main styles ──────────────────────────────────────────────── */
 const s = StyleSheet.create({
+  /* stats cards */
+  statsRow:    { flexDirection: 'row', gap: 10, paddingHorizontal: 12, paddingVertical: 12 },
+  statCard:    { width: 100, borderRadius: 14, padding: 12, gap: 4, alignItems: 'flex-start' },
+  statIconBox: { width: 30, height: 30, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.22)', justifyContent: 'center', alignItems: 'center', marginBottom: 2 },
+  statCount:   { fontSize: 22, fontFamily: 'Inter_700Bold', color: '#fff', lineHeight: 26 },
+  statLabel:   { fontSize: 10, fontFamily: 'Inter_500Medium', color: 'rgba(255,255,255,0.82)', letterSpacing: 0.2 },
+
   /* search */
   searchWrap:  { padding: 12, paddingBottom: 10, borderBottomWidth: 1 },
   searchBox:   { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
