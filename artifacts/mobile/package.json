@@ -57,6 +57,10 @@
   },
   "dependencies": {
     "expo-camera": "^17.0.10",
-    "firebase": "^12.15.0"
+    "expo-document-picker": "^56.0.4",
+    "expo-file-system": "^56.0.8",
+    "expo-sharing": "^56.0.18",
+    "firebase": "^12.15.0",
+    "xlsx": "^0.18.5"
   }
 }

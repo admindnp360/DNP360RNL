@@ -43,15 +43,36 @@ export interface Complaint {
   wardNumber?: string;
 }
 
+export type PropertyType = 'Residential' | 'Commercial' | 'Government' | 'Vacant' | 'Mixed Use' | 'Other';
+
 export interface House {
   id: string;
   registrationNumber: string;
   ownerName: string;
+  fatherOrHusband?: string;
   mobile: string;
   address: string;
   wardId: string;
   wardNumber: string;
+  groupId?: string;
+  groupName?: string;
+  propertyType?: PropertyType;
+  status?: 'Active' | 'Inactive';
   isActive: boolean;
+  createdBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  wardId: string;
+  wardNumber: string;
+  description?: string;
+  color?: string;
+  createdAt: string;
+  createdBy?: string;
 }
 
 export interface HouseVisit {
@@ -127,6 +148,26 @@ export interface PasswordResetRequest {
   adminNote?: string;
 }
 
+export interface ImportError {
+  rowNumber: number;
+  registrationNo?: string;
+  reason: string;
+}
+
+export interface ImportHistory {
+  id: string;
+  fileName: string;
+  totalRows: number;
+  successRows: number;
+  failedRows: number;
+  duplicateRows: number;
+  uploadedBy: string;
+  uploadedByName: string;
+  uploadedTime: string;
+  status: 'completed' | 'partial' | 'failed';
+  errorReport: ImportError[];
+}
+
 export const COMPLAINT_CATEGORIES: Record<ComplaintCategory, string> = {
   garbage_collection: 'Garbage Collection',
   drainage: 'Drainage',
@@ -146,3 +187,5 @@ export const COMPLAINT_CATEGORY_ICONS: Record<ComplaintCategory, string> = {
   cleanliness: 'wind',
   other: 'help-circle',
 };
+
+export const PROPERTY_TYPES: PropertyType[] = ['Residential', 'Commercial', 'Government', 'Vacant', 'Mixed Use', 'Other'];

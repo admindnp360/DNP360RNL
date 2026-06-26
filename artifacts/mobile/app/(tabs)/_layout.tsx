@@ -84,7 +84,14 @@ export default function TabLayout() {
   const [directCamera, setDirectCamera] = useState(false);
 
   const role = user?.role ?? 'citizen';
-  const tabs = ROLE_TABS[role] ?? ROLE_TABS.citizen;
+  const isSuperAdmin = !!(user as any)?.isSuperAdmin;
+  const baseTabs = ROLE_TABS[role] ?? ROLE_TABS.citizen;
+  const tabs = (role === 'admin' && isSuperAdmin)
+    ? {
+        ...baseTabs,
+        secondary: { icon: 'database', label: 'House DB' },
+      }
+    : baseTabs;
   const activeColor = ROLE_COLORS[role] ?? colors.primary;
   const isSafaikarmi = role === 'safaikarmi';
 

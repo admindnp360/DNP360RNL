@@ -4,14 +4,22 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { rtdb } from '@/lib/firebase';
 import type {
   Attendance, Complaint, ComplaintCategory, ComplaintStatus,
-  House, HouseVisit, Notice, PasswordResetRequest,
+  Group, House, HouseVisit, ImportHistory, Notice, PasswordResetRequest,
   SecretKey, SupportDetails, User, Ward,
 } from '@/types';
+
+interface BulkImportResult {
+  imported: number;
+  skipped: number;
+  failed: number;
+  errors: { rowNumber: number; registrationNo?: string; reason: string }[];
+}
 
 interface AppContextType {
   complaints: Complaint[];
   houses: House[];
   wards: Ward[];
+  groups: Group[];
   notices: Notice[];
   attendance: Attendance[];
   houseVisits: HouseVisit[];
@@ -19,6 +27,7 @@ interface AppContextType {
   secretKeys: SecretKey[];
   supportDetails: SupportDetails;
   passwordResetRequests: PasswordResetRequest[];
+  importHistory: ImportHistory[];
   addComplaint: (c: Omit<Complaint, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateComplaint: (id: string, updates: Partial<Complaint>) => Promise<void>;
   addHouseVisit: (visit: Omit<HouseVisit, 'id'>) => Promise<void>;
@@ -27,9 +36,19 @@ interface AppContextType {
   addMultipleHouses: (houses: Omit<House, 'id'>[]) => Promise<void>;
   updateHouse: (id: string, updates: Partial<House>) => Promise<void>;
   deleteHouse: (id: string) => Promise<void>;
+  bulkImportHouses: (
+    rows: Omit<House, 'id'>[],
+    duplicateMode: 'skip' | 'update' | 'replace',
+    onProgress?: (done: number, total: number) => void
+  ) => Promise<BulkImportResult>;
+  assignGroupToHouses: (houseIds: string[], groupId: string, groupName: string) => Promise<void>;
+  removeGroupFromHouses: (houseIds: string[]) => Promise<void>;
   addWard: (w: Omit<Ward, 'id'>) => Promise<void>;
   updateWard: (id: string, updates: Partial<Ward>) => Promise<void>;
   assignWorkerToWard: (wardId: string, workerId: string) => Promise<void>;
+  addGroup: (g: Omit<Group, 'id'>) => Promise<Group>;
+  updateGroup: (id: string, updates: Partial<Group>) => Promise<void>;
+  deleteGroup: (id: string) => Promise<void>;
   addNotice: (n: Omit<Notice, 'id' | 'createdAt'>) => Promise<void>;
   updateNotice: (id: string, updates: Partial<Notice>) => Promise<void>;
   deleteNotice: (id: string) => Promise<void>;
@@ -43,6 +62,8 @@ interface AppContextType {
   updateSupportDetails: (updates: Partial<SupportDetails>) => Promise<void>;
   addPasswordResetRequest: (email: string, name: string) => Promise<void>;
   updatePasswordResetRequest: (id: string, status: 'approved' | 'rejected', adminNote?: string) => Promise<void>;
+  addImportHistory: (h: Omit<ImportHistory, 'id'>) => Promise<void>;
+  deleteImportHistory: (id: string) => Promise<void>;
   getHouseByRegistration: (regNum: string) => House | undefined;
   getComplaintsByUser: (userId: string) => Complaint[];
   getAttendanceByWorker: (workerId: string) => Attendance[];
@@ -97,15 +118,24 @@ const SEED_WARDS: Ward[] = [
   { id: 'W12', wardNumber: '12', name: 'Daudnagar Ward 12', area: 'Zone 4', assignedWorkers: [], totalHouses: 110, officialId: 'OFF001' },
 ];
 
+const SEED_GROUPS: Group[] = [
+  { id: 'G001', name: 'Main Market', wardId: 'W1', wardNumber: '1', description: 'Main market area of Ward 1', color: '#10B981', createdAt: d(30), createdBy: 'SA001' },
+  { id: 'G002', name: 'Hospital Area', wardId: 'W1', wardNumber: '1', description: 'Near district hospital', color: '#EF4444', createdAt: d(30), createdBy: 'SA001' },
+  { id: 'G003', name: 'School Area', wardId: 'W1', wardNumber: '1', description: 'Near government school', color: '#F97316', createdAt: d(28), createdBy: 'SA001' },
+  { id: 'G004', name: 'Market Zone A', wardId: 'W2', wardNumber: '2', description: 'Market Road Zone', color: '#8B5CF6', createdAt: d(25), createdBy: 'SA001' },
+  { id: 'G005', name: 'Sector 7 Group 1', wardId: 'W42', wardNumber: '42', description: 'Near Temple', color: '#0EA5E9', createdAt: d(20), createdBy: 'SA001' },
+  { id: 'G006', name: 'Green Park Zone', wardId: 'W12', wardNumber: '12', description: 'Green Park area', color: '#EC4899', createdAt: d(15), createdBy: 'SA001' },
+];
+
 const SEED_HOUSES: House[] = [
-  { id: 'H001', registrationNumber: 'DNPH001', ownerName: 'Ramesh Prasad', mobile: '9934512300', address: 'Ward 42, Near Temple, Daudnagar', wardId: 'W42', wardNumber: '42', isActive: true },
-  { id: 'H002', registrationNumber: 'DNPH002', ownerName: 'Sunita Devi', mobile: '9934512301', address: 'Ward 42, Main Road, Daudnagar', wardId: 'W42', wardNumber: '42', isActive: true },
-  { id: 'H003', registrationNumber: 'DNPH003', ownerName: 'Manoj Kumar Singh', mobile: '9934512302', address: 'Ward 42, Shiv Nagar, Daudnagar', wardId: 'W42', wardNumber: '42', isActive: true },
-  { id: 'H004', registrationNumber: 'DNPH004', ownerName: 'Geeta Kumari', mobile: '9934512303', address: 'Ward 1, Station Road, Daudnagar', wardId: 'W1', wardNumber: '1', isActive: true },
-  { id: 'H005', registrationNumber: 'DNPH005', ownerName: 'Vijay Kumar', mobile: '9934512304', address: 'Ward 1, Near School, Daudnagar', wardId: 'W1', wardNumber: '1', isActive: true },
-  { id: 'H006', registrationNumber: 'DNPH006', ownerName: 'Anjali Singh', mobile: '9934512305', address: 'Ward 12, Civil Area, Daudnagar', wardId: 'W12', wardNumber: '12', isActive: true },
-  { id: 'H007', registrationNumber: 'DNPH007', ownerName: 'Pradeep Yadav', mobile: '9934512306', address: 'Ward 12, Green Park, Daudnagar', wardId: 'W12', wardNumber: '12', isActive: true },
-  { id: 'H008', registrationNumber: 'DNPH008', ownerName: 'Kavita Devi', mobile: '9934512307', address: 'Ward 2, Market Road, Daudnagar', wardId: 'W2', wardNumber: '2', isActive: true },
+  { id: 'H001', registrationNumber: 'DNPH001', ownerName: 'Ramesh Prasad', fatherOrHusband: 'Shiv Prasad', mobile: '9934512300', address: 'Ward 42, Near Temple, Daudnagar', wardId: 'W42', wardNumber: '42', groupId: 'G005', groupName: 'Sector 7 Group 1', propertyType: 'Residential', status: 'Active', isActive: true, createdAt: d(30) },
+  { id: 'H002', registrationNumber: 'DNPH002', ownerName: 'Sunita Devi', fatherOrHusband: 'Ram Kumar', mobile: '9934512301', address: 'Ward 42, Main Road, Daudnagar', wardId: 'W42', wardNumber: '42', groupId: 'G005', groupName: 'Sector 7 Group 1', propertyType: 'Residential', status: 'Active', isActive: true, createdAt: d(29) },
+  { id: 'H003', registrationNumber: 'DNPH003', ownerName: 'Manoj Kumar Singh', fatherOrHusband: 'Vijay Singh', mobile: '9934512302', address: 'Ward 42, Shiv Nagar, Daudnagar', wardId: 'W42', wardNumber: '42', propertyType: 'Commercial', status: 'Active', isActive: true, createdAt: d(28) },
+  { id: 'H004', registrationNumber: 'DNPH004', ownerName: 'Geeta Kumari', fatherOrHusband: 'Suresh Kumar', mobile: '9934512303', address: 'Ward 1, Station Road, Daudnagar', wardId: 'W1', wardNumber: '1', groupId: 'G001', groupName: 'Main Market', propertyType: 'Residential', status: 'Active', isActive: true, createdAt: d(27) },
+  { id: 'H005', registrationNumber: 'DNPH005', ownerName: 'Vijay Kumar', mobile: '9934512304', address: 'Ward 1, Near School, Daudnagar', wardId: 'W1', wardNumber: '1', groupId: 'G003', groupName: 'School Area', propertyType: 'Residential', status: 'Active', isActive: true, createdAt: d(26) },
+  { id: 'H006', registrationNumber: 'DNPH006', ownerName: 'Anjali Singh', fatherOrHusband: 'Deepak Singh', mobile: '9934512305', address: 'Ward 12, Civil Area, Daudnagar', wardId: 'W12', wardNumber: '12', groupId: 'G006', groupName: 'Green Park Zone', propertyType: 'Residential', status: 'Active', isActive: true, createdAt: d(25) },
+  { id: 'H007', registrationNumber: 'DNPH007', ownerName: 'Pradeep Yadav', mobile: '9934512306', address: 'Ward 12, Green Park, Daudnagar', wardId: 'W12', wardNumber: '12', propertyType: 'Government', status: 'Active', isActive: true, createdAt: d(24) },
+  { id: 'H008', registrationNumber: 'DNPH008', ownerName: 'Kavita Devi', fatherOrHusband: 'Mohan Prasad', mobile: '9934512307', address: 'Ward 2, Market Road, Daudnagar', wardId: 'W2', wardNumber: '2', groupId: 'G004', groupName: 'Market Zone A', propertyType: 'Commercial', status: 'Active', isActive: true, createdAt: d(23) },
 ];
 
 const SEED_NOTICES: Notice[] = [
@@ -269,7 +299,7 @@ async function rtdbSaveObj<T>(path: string, data: T): Promise<void> {
   }
 }
 
-const DATA_COLLECTIONS = ['complaints', 'houses', 'wards', 'notices', 'attendance', 'houseVisits', 'secretKeys', 'support', 'passwordResetRequests'];
+const DATA_COLLECTIONS = ['complaints', 'houses', 'wards', 'groups', 'notices', 'attendance', 'houseVisits', 'secretKeys', 'support', 'passwordResetRequests', 'importHistory'];
 
 async function checkVersion(): Promise<void> {
   try {
@@ -291,6 +321,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [houses, setHouses] = useState<House[]>([]);
   const [wards, setWards] = useState<Ward[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [houseVisits, setHouseVisits] = useState<HouseVisit[]>([]);
@@ -298,14 +329,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [secretKeys, setSecretKeys] = useState<SecretKey[]>([]);
   const [supportDetails, setSupportDetails] = useState<SupportDetails>(DEFAULT_SUPPORT);
   const [passwordResetRequests, setPasswordResetRequests] = useState<PasswordResetRequest[]>([]);
+  const [importHistory, setImportHistory] = useState<ImportHistory[]>([]);
 
   useEffect(() => {
     (async () => {
       await checkVersion();
-      const [c, h, w, n, a, v, u, k, s, r] = await Promise.all([
+      const [c, h, w, g, n, a, v, u, k, s, r, ih] = await Promise.all([
         rtdbLoad<Complaint>('complaints', SEED_COMPLAINTS),
         rtdbLoad<House>('houses', SEED_HOUSES),
         rtdbLoad<Ward>('wards', SEED_WARDS),
+        rtdbLoad<Group>('groups', SEED_GROUPS),
         rtdbLoad<Notice>('notices', SEED_NOTICES),
         rtdbLoad<Attendance>('attendance', seedAttendance()),
         rtdbLoad<HouseVisit>('houseVisits', seedHouseVisits()),
@@ -313,10 +346,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         rtdbLoad<SecretKey>('secretKeys', SEED_KEYS),
         rtdbLoadObj<SupportDetails>('support', DEFAULT_SUPPORT),
         rtdbLoad<PasswordResetRequest>('passwordResetRequests', []),
+        rtdbLoad<ImportHistory>('importHistory', []),
       ]);
-      setComplaints(c); setHouses(h); setWards(w); setNotices(n);
+      setComplaints(c); setHouses(h); setWards(w); setGroups(g); setNotices(n);
       setAttendance(a); setHouseVisits(v); setUsers(u); setSecretKeys(k);
-      setSupportDetails(s); setPasswordResetRequests(r);
+      setSupportDetails(s); setPasswordResetRequests(r); setImportHistory(ih);
     })();
   }, []);
 
@@ -348,24 +382,90 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function addHouse(h: Omit<House, 'id'>) {
-    const item: House = { ...h, id: uid() };
+    const item: House = { ...h, id: uid(), createdAt: today() };
     const updated = [...houses, item];
     setHouses(updated); await rtdbSave('houses', updated);
   }
 
   async function addMultipleHouses(newHouses: Omit<House, 'id'>[]) {
-    const items: House[] = newHouses.map(h => ({ ...h, id: uid() }));
+    const items: House[] = newHouses.map(h => ({ ...h, id: uid(), createdAt: today() }));
     const updated = [...houses, ...items];
     setHouses(updated); await rtdbSave('houses', updated);
   }
 
   async function updateHouse(id: string, updates: Partial<House>) {
-    const updated = houses.map(h => h.id === id ? { ...h, ...updates } : h);
+    const updated = houses.map(h => h.id === id ? { ...h, ...updates, updatedAt: today() } : h);
     setHouses(updated); await rtdbSave('houses', updated);
   }
 
   async function deleteHouse(id: string) {
     const updated = houses.filter(h => h.id !== id);
+    setHouses(updated); await rtdbSave('houses', updated);
+  }
+
+  async function bulkImportHouses(
+    rows: Omit<House, 'id'>[],
+    duplicateMode: 'skip' | 'update' | 'replace',
+    onProgress?: (done: number, total: number) => void
+  ): Promise<BulkImportResult> {
+    const result: BulkImportResult = { imported: 0, skipped: 0, failed: 0, errors: [] };
+    let currentHouses = [...houses];
+    const BATCH = 50;
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const existingIdx = currentHouses.findIndex(
+        h => h.registrationNumber.toUpperCase() === row.registrationNumber.toUpperCase()
+      );
+
+      if (existingIdx !== -1) {
+        if (duplicateMode === 'skip') {
+          result.skipped++;
+        } else {
+          const existing = currentHouses[existingIdx];
+          const merged: House = {
+            ...existing,
+            ownerName: row.ownerName,
+            fatherOrHusband: row.fatherOrHusband,
+            address: row.address,
+            mobile: row.mobile,
+            propertyType: row.propertyType,
+            wardId: row.wardId,
+            wardNumber: row.wardNumber,
+            updatedAt: today(),
+          };
+          currentHouses[existingIdx] = merged;
+          result.imported++;
+        }
+      } else {
+        const item: House = { ...row, id: uid(), createdAt: today(), status: 'Active', isActive: true };
+        currentHouses = [...currentHouses, item];
+        result.imported++;
+      }
+
+      if (onProgress && (i + 1) % BATCH === 0) {
+        onProgress(i + 1, rows.length);
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+
+    setHouses(currentHouses);
+    await rtdbSave('houses', currentHouses);
+    onProgress?.(rows.length, rows.length);
+    return result;
+  }
+
+  async function assignGroupToHouses(houseIds: string[], groupId: string, groupName: string) {
+    const updated = houses.map(h =>
+      houseIds.includes(h.id) ? { ...h, groupId, groupName, updatedAt: today() } : h
+    );
+    setHouses(updated); await rtdbSave('houses', updated);
+  }
+
+  async function removeGroupFromHouses(houseIds: string[]) {
+    const updated = houses.map(h =>
+      houseIds.includes(h.id) ? { ...h, groupId: undefined, groupName: undefined, updatedAt: today() } : h
+    );
     setHouses(updated); await rtdbSave('houses', updated);
   }
 
@@ -391,6 +491,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setWards(updatedWards); await rtdbSave('wards', updatedWards);
     const updatedUsers = users.map(u => u.id === workerId ? { ...u, wardId } : u);
     setUsers(updatedUsers); await rtdbSave('users', updatedUsers);
+  }
+
+  async function addGroup(g: Omit<Group, 'id'>): Promise<Group> {
+    const item: Group = { ...g, id: uid() };
+    const updated = [...groups, item];
+    setGroups(updated); await rtdbSave('groups', updated);
+    return item;
+  }
+
+  async function updateGroup(id: string, updates: Partial<Group>) {
+    const updated = groups.map(g => g.id === id ? { ...g, ...updates } : g);
+    setGroups(updated); await rtdbSave('groups', updated);
+  }
+
+  async function deleteGroup(id: string) {
+    const updated = groups.filter(g => g.id !== id);
+    setGroups(updated); await rtdbSave('groups', updated);
+    const updatedHouses = houses.map(h => h.groupId === id ? { ...h, groupId: undefined, groupName: undefined } : h);
+    setHouses(updatedHouses); await rtdbSave('houses', updatedHouses);
   }
 
   async function addNotice(n: Omit<Notice, 'id' | 'createdAt'>) {
@@ -465,6 +584,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPasswordResetRequests(updated); await rtdbSave('passwordResetRequests', updated);
   }
 
+  async function addImportHistory(h: Omit<ImportHistory, 'id'>) {
+    const item: ImportHistory = { ...h, id: uid() };
+    const updated = [item, ...importHistory];
+    setImportHistory(updated); await rtdbSave('importHistory', updated);
+  }
+
+  async function deleteImportHistory(id: string) {
+    const updated = importHistory.filter(h => h.id !== id);
+    setImportHistory(updated); await rtdbSave('importHistory', updated);
+  }
+
   const getHouseByRegistration = (regNum: string) =>
     houses.find(h => h.registrationNumber.toUpperCase() === regNum.toUpperCase());
 
@@ -483,16 +613,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      complaints, houses, wards, notices, attendance, houseVisits, users, secretKeys,
-      supportDetails, passwordResetRequests,
+      complaints, houses, wards, groups, notices, attendance, houseVisits, users, secretKeys,
+      supportDetails, passwordResetRequests, importHistory,
       addComplaint, updateComplaint, addHouseVisit, markAttendance,
-      addHouse, addMultipleHouses, updateHouse, deleteHouse,
+      addHouse, addMultipleHouses, updateHouse, deleteHouse, bulkImportHouses,
+      assignGroupToHouses, removeGroupFromHouses,
       addWard, updateWard, assignWorkerToWard,
+      addGroup, updateGroup, deleteGroup,
       addNotice, updateNotice, deleteNotice,
       addUser, updateUser, deleteUser,
       addSecretKey, toggleSecretKey, deleteSecretKey, updateSecretKeyCode,
       updateSupportDetails,
       addPasswordResetRequest, updatePasswordResetRequest,
+      addImportHistory, deleteImportHistory,
       getHouseByRegistration, getComplaintsByUser,
       getAttendanceByWorker, getVisitsByWorker, isTodayAttendanceMarked,
     }}>
