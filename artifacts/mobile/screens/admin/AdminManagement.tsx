@@ -41,8 +41,8 @@ export default function AdminManagement() {
   const [codeCopied, setCodeCopied] = useState(false);
 
   const GEN_ROLES = [
-    { role: 'safaikarmi' as SecretKey['role'], label: 'Safai Karmi', desc: 'Field sanitation worker access key', icon: 'trash-2', grad: ['#10B981', '#059669'] as const },
-    { role: 'official'   as SecretKey['role'], label: 'Official',    desc: 'Ward official access key',           icon: 'briefcase', grad: ['#0EA5E9', '#2563EB'] as const },
+    { role: 'safaikarmi' as SecretKey['role'], label: 'Safai Karmi', desc: 'SK-XXXX-XXXX', icon: 'trash-2',   grad: ['#10B981', '#059669'] as const },
+    { role: 'official'   as SecretKey['role'], label: 'Official',    desc: 'OF-XXXX-XXXX', icon: 'briefcase', grad: ['#F59E0B', '#EF4444'] as const },
   ];
 
   const ROLE_GRADS: Record<string, readonly [string, string]> = {
@@ -159,82 +159,80 @@ export default function AdminManagement() {
       {tab === 'genkey' && (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 110 }}>
 
-          {/* Header */}
-          <View style={styles.gkTitleRow}>
-            <LinearGradient colors={['#7C3AED','#4F46E5']} style={styles.gkTitleIcon}>
-              <Feather name="key" size={16} color="#fff" />
-            </LinearGradient>
-            <View>
-              <Text style={[styles.gkTitle, { color: colors.text }]}>Generate Secret Key</Text>
-              <Text style={[styles.gkSub, { color: colors.mutedForeground }]}>Issue unique access codes for staff</Text>
+          {/* Card header */}
+          <LinearGradient colors={['#0D1B4B', '#1A237E']} style={styles.gkCard}>
+            <View style={styles.gkCardTop}>
+              <LinearGradient colors={['rgba(255,255,255,0.18)','rgba(255,255,255,0.06)']} style={styles.gkCardIcon}>
+                <Feather name="plus-circle" size={18} color="#fff" />
+              </LinearGradient>
+              <View>
+                <Text style={styles.gkCardTitle}>Generate New Key</Text>
+                <Text style={styles.gkCardSub}>Unique access code for registration</Text>
+              </View>
             </View>
-          </View>
 
-          {/* Two full-width role cards stacked */}
-          {GEN_ROLES.map(item => {
-            const isThis = generating === item.role;
-            const isOther = generating !== null && generating !== item.role;
-            return (
-              <TouchableOpacity
-                key={item.role}
-                onPress={() => handleGenerate(item.role)}
-                disabled={generating !== null}
-                activeOpacity={0.88}
-                style={isOther ? { opacity: 0.35 } : {}}
-              >
-                <LinearGradient colors={item.grad} style={styles.gkRoleCard}>
-                  <View style={styles.gkRoleCardInner}>
-                    <LinearGradient colors={['rgba(255,255,255,0.25)','rgba(255,255,255,0.08)']} style={styles.gkRoleIconBox}>
-                      <Feather name={item.icon as any} size={24} color="#fff" />
+            {/* Two side-by-side generate buttons */}
+            <View style={styles.gkBtnRow}>
+              {GEN_ROLES.map(item => {
+                const isThis = generating === item.role;
+                const isOther = generating !== null && generating !== item.role;
+                return (
+                  <TouchableOpacity
+                    key={item.role}
+                    style={[styles.gkBtnWrap, isOther && { opacity: 0.38 }]}
+                    onPress={() => handleGenerate(item.role)}
+                    disabled={generating !== null}
+                    activeOpacity={0.85}
+                  >
+                    <LinearGradient colors={item.grad} style={styles.gkBtn}>
+                      <View style={styles.gkBtnIconBox}>
+                        {isThis
+                          ? <Feather name="loader" size={16} color="#fff" />
+                          : <Feather name={item.icon as any} size={16} color="#fff" />}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.gkBtnLabel}>{item.label}</Text>
+                        <Text style={styles.gkBtnDesc}>{item.desc}</Text>
+                      </View>
+                      {!isThis && (
+                        <View style={styles.gkPlusCircle}>
+                          <Feather name="plus" size={13} color="rgba(255,255,255,0.9)" />
+                        </View>
+                      )}
                     </LinearGradient>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.gkRoleName}>{item.label}</Text>
-                      <Text style={styles.gkRoleDesc}>{item.desc}</Text>
-                    </View>
-                    <View style={styles.gkPlusBox}>
-                      {isThis
-                        ? <Feather name="loader" size={20} color="rgba(255,255,255,0.9)" />
-                        : <Feather name="plus" size={22} color="rgba(255,255,255,0.9)" />}
-                    </View>
-                  </View>
-                  <View style={styles.gkFormatRow}>
-                    <Feather name="hash" size={10} color="rgba(255,255,255,0.55)" />
-                    <Text style={styles.gkFormatTxt}>
-                      {item.role === 'safaikarmi' ? 'Format: SK-XXXX-XXXX' : 'Format: OF-XXXX-XXXX'}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Latest generated key inside card */}
+            {latestKey && (
+              <View style={styles.gkLatestWrap}>
+                <View style={styles.gkLatestHdr}>
+                  <Feather name="clock" size={11} color="rgba(255,255,255,0.5)" />
+                  <Text style={styles.gkLatestLabel}>Latest Generated</Text>
+                  <View style={[styles.gkRolePill, { backgroundColor: (ROLE_GRADS[latestKey.role]?.[0] ?? '#10B981') + '35' }]}>
+                    <Text style={[styles.gkRolePillTxt, { color: ROLE_GRADS[latestKey.role]?.[0] ?? '#10B981' }]}>
+                      {latestKey.role === 'safaikarmi' ? 'Safai Karmi' : 'Official'}
                     </Text>
                   </View>
-                </LinearGradient>
-              </TouchableOpacity>
-            );
-          })}
-
-          {/* Latest generated key */}
-          {latestKey && (
-            <View style={[styles.gkLatestWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <View style={styles.gkLatestHdr}>
-                <Feather name="clock" size={11} color={colors.mutedForeground} />
-                <Text style={[styles.gkLatestLabel, { color: colors.mutedForeground }]}>Latest Generated</Text>
-                <View style={[styles.gkRolePill, { backgroundColor: (ROLE_GRADS[latestKey.role]?.[0] ?? '#7C3AED') + '20' }]}>
-                  <Text style={[styles.gkRolePillTxt, { color: ROLE_GRADS[latestKey.role]?.[0] ?? '#7C3AED' }]}>
-                    {latestKey.role === 'safaikarmi' ? 'Safai Karmi' : 'Official'}
-                  </Text>
                 </View>
+                <TouchableOpacity activeOpacity={0.8} onPress={() => handleCopyCode(latestKey.code)} style={{ width: '100%' }}>
+                  <LinearGradient
+                    colors={codeCopied ? ['#10B981','#059669'] : (ROLE_GRADS[latestKey.role] ?? ['#10B981','#059669'] as const)}
+                    style={styles.gkLatestCodeBar}
+                  >
+                    <Feather name={codeCopied ? 'check' : 'key'} size={14} color="rgba(255,255,255,0.85)" />
+                    <Text style={styles.gkLatestCodeTxt} numberOfLines={1}>
+                      {codeCopied ? 'Copied!' : latestKey.code}
+                    </Text>
+                    {!codeCopied && <Feather name="copy" size={13} color="rgba(255,255,255,0.7)" />}
+                  </LinearGradient>
+                </TouchableOpacity>
+                <Text style={styles.gkLatestDate}>Created {latestKey.createdAt}</Text>
               </View>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => handleCopyCode(latestKey.code)}
-              >
-                <View style={[styles.gkLatestCodeRow, { borderColor: (ROLE_GRADS[latestKey.role]?.[0] ?? '#7C3AED') + '40', backgroundColor: (ROLE_GRADS[latestKey.role]?.[0] ?? '#7C3AED') + '10' }]}>
-                  <Feather name="key" size={14} color={ROLE_GRADS[latestKey.role]?.[0] ?? '#7C3AED'} />
-                  <Text style={[styles.gkLatestCode, { color: ROLE_GRADS[latestKey.role]?.[0] ?? '#7C3AED' }]} numberOfLines={1}>
-                    {latestKey.code}
-                  </Text>
-                  <Feather name="copy" size={14} color={ROLE_GRADS[latestKey.role]?.[0] ?? '#7C3AED'} />
-                </View>
-              </TouchableOpacity>
-              <Text style={[styles.gkLatestDate, { color: colors.mutedForeground }]}>Created {latestKey.createdAt}</Text>
-            </View>
-          )}
+            )}
+          </LinearGradient>
         </ScrollView>
       )}
 
@@ -586,17 +584,27 @@ const styles = StyleSheet.create({
   requestName: { fontSize: 15, fontFamily: 'Inter_700Bold' },
   requestEmail: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
 
-  genCard: { borderRadius: 20, padding: 18, gap: 16 },
-  genCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  genCardIcon: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
-  genCardTitle: { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
-  genCardSub: { color: 'rgba(255,255,255,0.55)', fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  genBtnRow: { flexDirection: 'row', gap: 8 },
-  genBtnWrap: { flex: 1 },
-  genBtn: { borderRadius: 12, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  genBtnText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_700Bold' },
-  genLoading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  genLoadingText: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontFamily: 'Inter_400Regular' },
+  gkCard: { borderRadius: 20, padding: 18, gap: 16 },
+  gkCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  gkCardIcon: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
+  gkCardTitle: { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
+  gkCardSub: { color: 'rgba(255,255,255,0.55)', fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  gkBtnRow: { flexDirection: 'row', gap: 10 },
+  gkBtnWrap: { flex: 1 },
+  gkBtn: { borderRadius: 14, paddingVertical: 14, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  gkBtnIconBox: { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  gkBtnLabel: { color: '#fff', fontSize: 13, fontFamily: 'Inter_700Bold' },
+  gkBtnDesc: { color: 'rgba(255,255,255,0.6)', fontSize: 9, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  gkPlusCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+
+  gkLatestWrap: { gap: 8 },
+  gkLatestHdr: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  gkLatestLabel: { color: 'rgba(255,255,255,0.55)', fontSize: 11, fontFamily: 'Inter_500Medium', flex: 1 },
+  gkRolePill: { borderRadius: 99, paddingHorizontal: 8, paddingVertical: 3 },
+  gkRolePillTxt: { fontSize: 10, fontFamily: 'Inter_700Bold' },
+  gkLatestCodeBar: { borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12 },
+  gkLatestCodeTxt: { flex: 1, color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold', letterSpacing: 2 },
+  gkLatestDate: { color: 'rgba(255,255,255,0.4)', fontSize: 10, fontFamily: 'Inter_400Regular' },
 
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
   newKeySheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 28, gap: 16, alignItems: 'center' },
@@ -604,8 +612,8 @@ const styles = StyleSheet.create({
   celebGrad: { width: 74, height: 74, borderRadius: 37, justifyContent: 'center', alignItems: 'center' },
   celebTitle: { color: '#fff', fontSize: 26, fontFamily: 'Inter_700Bold' },
   celebRole: { fontSize: 14, fontFamily: 'Inter_400Regular' },
-  codeReveal: { borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 24, paddingVertical: 18, alignSelf: 'stretch', justifyContent: 'center' },
-  codeRevealText: { color: '#fff', fontSize: 30, fontFamily: 'Inter_700Bold', letterSpacing: 4 },
+  codeReveal: { borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingVertical: 18, alignSelf: 'stretch', justifyContent: 'center' },
+  codeRevealText: { color: '#fff', fontSize: 24, fontFamily: 'Inter_700Bold', letterSpacing: 3, flex: 1, textAlign: 'center' },
   celebNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 12, borderWidth: 1, padding: 12, alignSelf: 'stretch' },
   celebNoteText: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontFamily: 'Inter_400Regular', flex: 1, lineHeight: 18 },
   celebDoneBtn: { borderRadius: 14, paddingVertical: 14, paddingHorizontal: 60 },

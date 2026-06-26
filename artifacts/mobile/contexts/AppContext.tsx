@@ -56,9 +56,11 @@ interface AppContextType {
   updateUser: (id: string, updates: Partial<User>) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
   addSecretKey: (role: SecretKey['role']) => Promise<SecretKey>;
+  assignSecretKeyToUser: (userId: string, userName: string, role: SecretKey['role']) => Promise<SecretKey>;
   toggleSecretKey: (id: string) => Promise<void>;
   deleteSecretKey: (id: string) => Promise<void>;
   updateSecretKeyCode: (keyId: string, newCode: string) => Promise<void>;
+  updateUserId: (oldId: string, newId: string) => Promise<void>;
   updateSupportDetails: (updates: Partial<SupportDetails>) => Promise<void>;
   addPasswordResetRequest: (email: string, name: string) => Promise<void>;
   updatePasswordResetRequest: (id: string, status: 'approved' | 'rejected', adminNote?: string) => Promise<void>;
@@ -567,9 +569,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSecretKeys(updated); await rtdbSave('secretKeys', updated);
   }
 
+  async function assignSecretKeyToUser(userId: string, userName: string, role: SecretKey['role']): Promise<SecretKey> {
+    const code = genSecretKey(role);
+    const item: SecretKey = { id: uid(), code, role, isActive: true, createdAt: today(), usedBy: userId, usedByName: userName };
+    const updated = [...secretKeys, item];
+    setSecretKeys(updated); await rtdbSave('secretKeys', updated);
+    return item;
+  }
+
   async function updateSecretKeyCode(keyId: string, newCode: string) {
     const updated = secretKeys.map(k => k.id === keyId ? { ...k, code: newCode.trim().toUpperCase() } : k);
     setSecretKeys(updated); await rtdbSave('secretKeys', updated);
+  }
+
+  async function updateUserId(oldId: string, newId: string) {
+    const trimNew = newId.trim().toUpperCase();
+    if (!trimNew || trimNew === oldId) return;
+    const updatedUsers = users.map(u => u.id === oldId ? { ...u, id: trimNew } : u);
+    setUsers(updatedUsers); await rtdbSave('users', updatedUsers);
+    const updatedKeys = secretKeys.map(k =>
+      k.usedBy === oldId ? { ...k, usedBy: trimNew } : k
+    );
+    setSecretKeys(updatedKeys); await rtdbSave('secretKeys', updatedKeys);
   }
 
   async function updateSupportDetails(updates: Partial<SupportDetails>) {
@@ -628,7 +649,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addGroup, updateGroup, deleteGroup,
       addNotice, updateNotice, deleteNotice,
       addUser, updateUser, deleteUser,
-      addSecretKey, toggleSecretKey, deleteSecretKey, updateSecretKeyCode,
+      addSecretKey, assignSecretKeyToUser, toggleSecretKey, deleteSecretKey, updateSecretKeyCode, updateUserId,
       updateSupportDetails,
       addPasswordResetRequest, updatePasswordResetRequest,
       addImportHistory, deleteImportHistory,

@@ -40,7 +40,7 @@ const ROLE_GRAD: Record<string, readonly [string, string]> = {
 
 /* ─── component ──────────────────────────────────────────────── */
 export default function AdminUsers() {
-  const { users, updateUser, deleteUser, secretKeys, updateSecretKeyCode } = useAppData();
+  const { users, updateUser, deleteUser, secretKeys, updateSecretKeyCode, assignSecretKeyToUser, updateUserId } = useAppData();
   const { user: currentUser } = useAuth();
   const colors = useColors();
   const { showAlert } = useAlert();
@@ -63,10 +63,13 @@ export default function AdminUsers() {
   const [editMobile, setEditMobile]   = useState('');
   const [editAddress, setEditAddress] = useState('');
   const [editEmpId, setEditEmpId]     = useState('');
+  const [editUserId, setEditUserId]   = useState('');
   const [editAvatar, setEditAvatar]   = useState('');
   const [editKeyCode, setEditKeyCode] = useState('');
   const [showKey, setShowKey]         = useState(false);
   const [saving, setSaving]           = useState(false);
+  const [assigningKey, setAssigningKey] = useState(false);
+  const [newlyAssignedKey, setNewlyAssignedKey] = useState<{ code: string; role: string } | null>(null);
   const [copiedId, setCopiedId]       = useState<string | null>(null);
 
   /* stats counts */
@@ -113,15 +116,18 @@ export default function AdminUsers() {
     setEditMobile(u.mobile ?? '');
     setEditAddress(u.address ?? '');
     setEditEmpId(u.employeeId ?? '');
+    setEditUserId(u.id);
     setEditAvatar(u.avatar ?? '');
     setEditKeyCode(key?.code ?? '');
     setShowKey(false);
     setEditMode(false);
+    setNewlyAssignedKey(null);
   }
 
   function closeProfile() {
     setProfileUser(null);
     setEditMode(false);
+    setNewlyAssignedKey(null);
   }
 
   /* pick photo */
@@ -146,15 +152,27 @@ export default function AdminUsers() {
   /* save edits */
   async function handleSave() {
     if (!profileUser) return;
-    /* authz: non-super-admins cannot edit citizens */
     if (!isSuperAdmin && profileUser.role === 'citizen') return;
     if (!editName.trim()) {
       showAlert('Required', 'Name cannot be empty.', undefined, 'warning');
       return;
     }
+    const newId = editUserId.trim().toUpperCase();
+    if (isSuperAdmin && newId && newId !== profileUser.id) {
+      const conflict = users.find(u => u.id === newId && u.id !== profileUser.id);
+      if (conflict) {
+        showAlert('ID Taken', `User ID "${newId}" is already in use.`, undefined, 'error');
+        return;
+      }
+    }
     setSaving(true);
     try {
-      await updateUser(profileUser.id, {
+      /* update User ID first if changed (super admin only) */
+      const effectiveId = isSuperAdmin && newId && newId !== profileUser.id ? newId : profileUser.id;
+      if (isSuperAdmin && newId && newId !== profileUser.id) {
+        await updateUserId(profileUser.id, newId);
+      }
+      await updateUser(effectiveId, {
         name:       editName.trim(),
         email:      editEmail.trim(),
         mobile:     editMobile.trim() || undefined,
@@ -162,16 +180,15 @@ export default function AdminUsers() {
         employeeId: editEmpId.trim() || undefined,
         avatar:     editAvatar || undefined,
       });
-      /* update secret key if changed */
+      /* update secret key code if changed */
       if (isSuperAdmin && profileUser.role !== 'citizen') {
-        const key = getUserKey(profileUser.id);
+        const key = getUserKey(profileUser.id) ?? getUserKey(effectiveId);
         if (key && editKeyCode.trim() && editKeyCode.trim().toUpperCase() !== key.code) {
           await updateSecretKeyCode(key.id, editKeyCode.trim().toUpperCase());
         }
       }
-      /* refresh local copy */
       setProfileUser(prev =>
-        prev ? { ...prev, name: editName.trim(), email: editEmail.trim(),
+        prev ? { ...prev, id: effectiveId, name: editName.trim(), email: editEmail.trim(),
           mobile: editMobile.trim() || undefined, address: editAddress.trim() || undefined,
           employeeId: editEmpId.trim() || undefined, avatar: editAvatar || undefined } : prev
       );
@@ -179,6 +196,19 @@ export default function AdminUsers() {
       showAlert('Saved', 'Profile updated successfully.', undefined, 'success');
     } finally {
       setSaving(false);
+    }
+  }
+
+  /* assign a new secret key to user without one */
+  async function handleAssignKey(u: User) {
+    if (!isSuperAdmin) return;
+    setAssigningKey(true);
+    try {
+      const key = await assignSecretKeyToUser(u.id, u.name, u.role as any);
+      setNewlyAssignedKey({ code: key.code, role: u.role });
+      showAlert('Key Assigned', `New secret key created and linked to ${u.name}.`, undefined, 'success');
+    } finally {
+      setAssigningKey(false);
     }
   }
 
@@ -561,6 +591,34 @@ export default function AdminUsers() {
                         />
                       )}
 
+                      {/* User ID edit — Super Admin only */}
+                      {isSuperAdmin && (
+                        <>
+                          <SectionHeading icon="hash" label="User ID" color="#6366F1" />
+                          <View>
+                            <Text style={[ef.label, { color: colors.mutedForeground }]}>User ID</Text>
+                            <View style={[ef.row, { backgroundColor: colors.card, borderColor: '#6366F140' }]}>
+                              <Feather name="hash" size={15} color="#6366F1" />
+                              <TextInput
+                                style={[ef.input, { color: colors.text, fontFamily: 'Inter_700Bold', letterSpacing: 1 }]}
+                                value={editUserId}
+                                onChangeText={v => setEditUserId(v.replace(/[^A-Za-z0-9]/g, '').toUpperCase())}
+                                autoCapitalize="characters"
+                                autoCorrect={false}
+                                placeholder="e.g. SK1234A"
+                                placeholderTextColor={colors.mutedForeground}
+                              />
+                            </View>
+                            <View style={[s.keyWarnBox, { marginTop: 6 }]}>
+                              <Feather name="alert-triangle" size={11} color="#D97706" />
+                              <Text style={s.keyWarnText}>
+                                Changing User ID updates all linked records. Use with caution.
+                              </Text>
+                            </View>
+                          </View>
+                        </>
+                      )}
+
                       {/* Secret Key edit (Super Admin only) */}
                       {showKeySection && (
                         <>
@@ -570,7 +628,7 @@ export default function AdminUsers() {
                               <View style={[s.keyInfoBox, { backgroundColor: '#7C3AED0E', borderColor: '#7C3AED22' }]}>
                                 <Feather name="info" size={12} color="#7C3AED" />
                                 <Text style={s.keyInfoText}>
-                                  Current code: <Text style={s.keyInfoCode}>{linkedKey.code}</Text>
+                                  Current: <Text style={s.keyInfoCode}>{linkedKey.code}</Text>
                                   {'  ·  '}
                                   <Text style={{ color: linkedKey.isActive ? '#10B981' : '#EF4444' }}>
                                     {linkedKey.isActive ? 'Active' : 'Revoked'}
@@ -601,11 +659,33 @@ export default function AdminUsers() {
                               </View>
                             </>
                           ) : (
-                            <View style={[s.keyInfoBox, { backgroundColor: '#FEF3C710', borderColor: '#F59E0B22' }]}>
-                              <Feather name="info" size={12} color="#F59E0B" />
-                              <Text style={[s.keyInfoText, { color: '#92400E' }]}>
-                                No linked secret key for this user.
-                              </Text>
+                            <View style={{ gap: 10 }}>
+                              <View style={[s.keyInfoBox, { backgroundColor: '#FEF3C710', borderColor: '#F59E0B22' }]}>
+                                <Feather name="alert-circle" size={12} color="#F59E0B" />
+                                <Text style={[s.keyInfoText, { color: '#92400E' }]}>
+                                  No secret key linked. Assign one to enable staff registration.
+                                </Text>
+                              </View>
+                              {profileUser.role !== 'citizen' && (
+                                <TouchableOpacity
+                                  onPress={() => handleAssignKey(profileUser)}
+                                  disabled={assigningKey}
+                                  activeOpacity={0.85}
+                                  style={assigningKey ? { opacity: 0.6 } : {}}
+                                >
+                                  <LinearGradient colors={['#7C3AED', '#6366F1']} style={s.assignKeyBtn}>
+                                    <Feather name={assigningKey ? 'loader' : 'key'} size={15} color="#fff" />
+                                    <Text style={s.assignKeyBtnText}>{assigningKey ? 'Assigning…' : 'Assign New Secret Key'}</Text>
+                                  </LinearGradient>
+                                </TouchableOpacity>
+                              )}
+                              {newlyAssignedKey && (
+                                <View style={[s.newKeyReveal, { backgroundColor: '#7C3AED15', borderColor: '#7C3AED30' }]}>
+                                  <Feather name="check-circle" size={14} color="#7C3AED" />
+                                  <Text style={[s.newKeyRevealTxt, { color: '#7C3AED' }]} numberOfLines={1}>{newlyAssignedKey.code}</Text>
+                                  <Text style={[s.newKeyRevealHint, { color: colors.mutedForeground }]}>Tap to copy</Text>
+                                </View>
+                              )}
                             </View>
                           )}
                         </>
@@ -654,9 +734,9 @@ export default function AdminUsers() {
                                 <Feather name="key" size={14} color="#fff" />
                               </LinearGradient>
                               <View style={{ flex: 1 }}>
-                                <Text style={s.keyCardCode}>{linkedKey.code}</Text>
+                                <Text style={s.keyCardCode} numberOfLines={1}>{linkedKey.code}</Text>
                                 <Text style={[s.keyCardMeta, { color: colors.mutedForeground }]}>
-                                  Role: {linkedKey.role}  ·  Created {linkedKey.createdAt}
+                                  {linkedKey.role === 'safaikarmi' ? 'Safai Karmi' : 'Official'}  ·  {linkedKey.createdAt}
                                 </Text>
                               </View>
                               <View style={[s.keyStatusPill, { backgroundColor: linkedKey.isActive ? '#D1FAE5' : '#FEE2E2' }]}>
@@ -667,9 +747,30 @@ export default function AdminUsers() {
                               </View>
                             </View>
                           ) : (
-                            <View style={[s.keyInfoBox, { backgroundColor: '#FEF3C710', borderColor: '#F59E0B22' }]}>
-                              <Feather name="alert-circle" size={12} color="#F59E0B" />
-                              <Text style={[s.keyInfoText, { color: '#92400E' }]}>No linked secret key</Text>
+                            <View style={{ gap: 10 }}>
+                              <View style={[s.keyInfoBox, { backgroundColor: '#FEF3C710', borderColor: '#F59E0B22' }]}>
+                                <Feather name="alert-circle" size={12} color="#F59E0B" />
+                                <Text style={[s.keyInfoText, { color: '#92400E' }]}>No secret key linked. Assign one below.</Text>
+                              </View>
+                              {profileUser.role !== 'citizen' && (
+                                <TouchableOpacity
+                                  onPress={() => handleAssignKey(profileUser)}
+                                  disabled={assigningKey}
+                                  activeOpacity={0.85}
+                                  style={assigningKey ? { opacity: 0.6 } : {}}
+                                >
+                                  <LinearGradient colors={['#7C3AED', '#6366F1']} style={s.assignKeyBtn}>
+                                    <Feather name={assigningKey ? 'loader' : 'key'} size={15} color="#fff" />
+                                    <Text style={s.assignKeyBtnText}>{assigningKey ? 'Assigning…' : 'Assign New Secret Key'}</Text>
+                                  </LinearGradient>
+                                </TouchableOpacity>
+                              )}
+                              {newlyAssignedKey && (
+                                <View style={[s.newKeyReveal, { backgroundColor: '#7C3AED15', borderColor: '#7C3AED30' }]}>
+                                  <Feather name="check-circle" size={14} color="#7C3AED" />
+                                  <Text style={[s.newKeyRevealTxt, { color: '#7C3AED' }]} numberOfLines={1}>{newlyAssignedKey.code}</Text>
+                                </View>
+                              )}
                             </View>
                           )}
                         </>
@@ -922,6 +1023,11 @@ const s = StyleSheet.create({
   editInput: { flex: 1, fontSize: 14, paddingVertical: 12 },
   keyWarnBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, backgroundColor: '#FEF3C710', borderRadius: 10, borderWidth: 1, borderColor: '#F59E0B25', padding: 10 },
   keyWarnText: { color: '#D97706', fontSize: 11, fontFamily: 'Inter_400Regular', flex: 1, lineHeight: 16 },
+  assignKeyBtn: { borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13 },
+  assignKeyBtnText: { color: '#fff', fontSize: 14, fontFamily: 'Inter_700Bold' },
+  newKeyReveal: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, padding: 12 },
+  newKeyRevealTxt: { flex: 1, fontSize: 15, fontFamily: 'Inter_700Bold', letterSpacing: 1.5 },
+  newKeyRevealHint: { fontSize: 10, fontFamily: 'Inter_400Regular' },
 
   /* actions */
   actionsGrid: { flexDirection: 'row', gap: 12 },
