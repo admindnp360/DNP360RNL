@@ -11,14 +11,14 @@ import { useAppData } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useColors } from '@/hooks/useColors';
 import type { PasswordResetRequest } from '@/types';
-import SuperAdminHouseMain from './SuperAdminHouseMain';
+import AdminKeys from './AdminKeys';
 
-type Tab = 'housedb' | 'notices' | 'resets';
+type Tab = 'genkey' | 'notices' | 'resets';
 
 const TAB_CONFIG = [
-  { key: 'housedb',  label: 'House DB', icon: 'database', grad: ['#4F46E5', '#7C3AED'] as const },
-  { key: 'notices',  label: 'Notices',  icon: 'volume-2', grad: ['#0EA5E9', '#0284C7'] as const },
-  { key: 'resets',   label: 'Resets',   icon: 'unlock',   grad: ['#F97316', '#EF4444'] as const },
+  { key: 'notices',  label: 'Notices',   icon: 'volume-2', grad: ['#0EA5E9', '#0284C7'] as const },
+  { key: 'resets',   label: 'Resets',    icon: 'unlock',   grad: ['#F97316', '#EF4444'] as const },
+  { key: 'genkey',   label: 'Gen. Key',  icon: 'key',      grad: ['#7C3AED', '#4F46E5'] as const },
 ] as const;
 
 const PRIORITY_CONFIG = {
@@ -36,7 +36,7 @@ export default function AdminManagement() {
   const { resetUserPassword } = useAuth();
   const colors = useColors();
 
-  const [tab, setTab] = useState<Tab>('housedb');
+  const [tab, setTab] = useState<Tab>('notices');
   const [showNoticeModal, setShowNoticeModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<PasswordResetRequest | null>(null);
@@ -94,9 +94,9 @@ export default function AdminManagement() {
       <LinearGradient colors={activeTab.grad} style={styles.header}>
         <Text style={styles.headerTitle}>Management</Text>
         <Text style={styles.headerSub}>
-          {tab === 'housedb' ? 'House database & ward management'
-            : tab === 'notices' ? `${notices.length} notices published`
-            : `${pendingResets} pending request${pendingResets !== 1 ? 's' : ''}`}
+          {tab === 'notices' ? `${notices.length} notices published`
+            : tab === 'resets' ? `${pendingResets} pending request${pendingResets !== 1 ? 's' : ''}`
+            : 'Generate & manage secret access keys'}
         </Text>
       </LinearGradient>
 
@@ -125,10 +125,10 @@ export default function AdminManagement() {
         })}
       </View>
 
-      {/* ── HOUSE DB TAB ── */}
-      {tab === 'housedb' && (
+      {/* ── GEN KEY TAB ── */}
+      {tab === 'genkey' && (
         <View style={{ flex: 1 }}>
-          <SuperAdminHouseMain embedded />
+          <AdminKeys />
         </View>
       )}
 

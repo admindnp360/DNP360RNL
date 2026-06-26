@@ -21,12 +21,8 @@ export default function SuperAdminHouseMain({ embedded = false }: { embedded?: b
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {tab === 'housedb' && <SuperAdminHouseDB />}
-      {tab === 'import' && <SuperAdminImport />}
-      {tab === 'groups' && <SuperAdminGroups />}
-
-      {/* Bottom inner tab bar */}
-      <View style={[s.innerTabBar, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+      {/* Top inner tab bar */}
+      <View style={[s.innerTabBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         {TABS.map(t => {
           const active = tab === t.key;
           return (
@@ -51,21 +47,20 @@ export default function SuperAdminHouseMain({ embedded = false }: { embedded?: b
           );
         })}
       </View>
+
+      {tab === 'housedb' && <SuperAdminHouseDB />}
+      {tab === 'import' && <SuperAdminImport />}
+      {tab === 'groups' && <SuperAdminGroups />}
     </View>
   );
 }
 
 const s = StyleSheet.create({
   innerTabBar: {
-    position: 'absolute',
-    bottom: 62,
-    left: 0,
-    right: 0,
     flexDirection: 'row',
-    borderTopWidth: 1,
+    borderBottomWidth: 1,
     paddingBottom: 6,
     paddingTop: 6,
-    zIndex: 10,
   },
   innerTab: {
     flex: 1,
