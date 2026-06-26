@@ -379,17 +379,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const snap2arr = <T,>(snap: any) =>
         snap.docs.map((d: any) => ({ id: d.id, ...d.data() }) as T);
 
-      function listen<T>(
+      function listen<T extends { id: string }>(
         colName: string,
         setter: React.Dispatch<React.SetStateAction<T[]>>,
         fallback: T[],
       ): () => void {
         return onSnapshot(
           collection(db, colName),
-          (snap) => setter(snap2arr<T>(snap)),
+          (snap) => {
+            const fresh = snap2arr<T>(snap);
+            setter(prev => {
+              // Keep locally-added items not yet confirmed by Firestore
+              // (happens when writes fail due to missing auth/rules)
+              const freshIds = new Set(fresh.map((d: T) => d.id));
+              const localOnly = prev.filter(d => !freshIds.has(d.id));
+              return localOnly.length > 0 ? [...fresh, ...localOnly] : fresh;
+            });
+          },
           (err) => {
-            console.warn(`[Firestore] ${colName}: ${err.code} — using local fallback`);
-            if (fallback.length > 0) setter(fallback);
+            console.warn(`[Firestore] ${colName}: ${err.code} — keeping local state`);
+            // Don't wipe existing local state on read errors
+            setter(prev => prev.length > 0 ? prev : fallback);
           },
         );
       }
