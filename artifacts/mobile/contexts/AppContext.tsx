@@ -11,7 +11,7 @@ import {
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { signInAnonymously } from 'firebase/auth';
 import { db, firebaseAuth } from '@/lib/firebase';
 import type {
@@ -84,6 +84,7 @@ interface AppContextType {
   getAttendanceByWorker: (workerId: string) => Attendance[];
   getVisitsByWorker: (workerId: string) => HouseVisit[];
   isTodayAttendanceMarked: (workerId: string) => boolean;
+  syncStatus: 'synced' | 'pending' | 'error';
 }
 
 const STORAGE_VERSION = '7';
@@ -340,6 +341,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [supportDetails, setSupportDetails] = useState<SupportDetails>(DEFAULT_SUPPORT);
   const [passwordResetRequests, setPasswordResetRequests] = useState<PasswordResetRequest[]>([]);
   const [importHistory, setImportHistory] = useState<ImportHistory[]>([]);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'pending' | 'error'>('synced');
+  const _pendingWrites = useRef(0);
+  const _hadFsError = useRef(false);
+
+  function _beginWrite() {
+    _pendingWrites.current += 1;
+    setSyncStatus('pending');
+  }
+  function _endWrite(ok: boolean) {
+    _pendingWrites.current = Math.max(0, _pendingWrites.current - 1);
+    if (!ok) _hadFsError.current = true;
+    if (_pendingWrites.current === 0) setSyncStatus(_hadFsError.current ? 'error' : 'synced');
+  }
+  async function _fsWrite<T extends { id: string }>(col: string, item: T) {
+    _beginWrite();
+    const { id, ...rest } = item as any;
+    try {
+      await setDoc(doc(db, col, id), clean({ ...rest, _updatedAt: serverTimestamp() }));
+      _hadFsError.current = false;
+      _endWrite(true);
+    } catch {
+      _endWrite(false);
+      console.warn(`[Sync] Write failed: ${col}/${id}`);
+    }
+  }
+  async function _fsDelete(col: string, id: string) {
+    _beginWrite();
+    try {
+      await deleteDoc(doc(db, col, id));
+      _endWrite(true);
+    } catch {
+      _endWrite(false);
+      console.warn(`[Sync] Delete failed: ${col}/${id}`);
+    }
+  }
 
   useEffect(() => {
     const unsubscribers: (() => void)[] = [];
@@ -390,16 +426,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const fresh = snap2arr<T>(snap);
             setter(prev => {
               // Keep locally-added items not yet confirmed by Firestore
-              // (happens when writes fail due to missing auth/rules)
               const freshIds = new Set(fresh.map((d: T) => d.id));
               const localOnly = prev.filter(d => !freshIds.has(d.id));
               return localOnly.length > 0 ? [...fresh, ...localOnly] : fresh;
             });
+            // Clear read-error flag when a snapshot succeeds
+            _hadFsError.current = false;
+            if (_pendingWrites.current === 0) setSyncStatus('synced');
           },
           (err) => {
             console.warn(`[Firestore] ${colName}: ${err.code} — keeping local state`);
-            // Don't wipe existing local state on read errors
             setter(prev => prev.length > 0 ? prev : fallback);
+            _hadFsError.current = true;
+            setSyncStatus('error');
           },
         );
       }
@@ -461,7 +500,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function addHouse(h: Omit<House, 'id'>) {
     const item: House = { ...h, id: uid(), createdAt: today() };
     setHouses(prev => [...prev, item]);
-    await fsSaveDoc('houses', item);
+    await _fsWrite('houses', item);
   }
 
   async function addMultipleHouses(newHouses: Omit<House, 'id'>[]) {
@@ -478,12 +517,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function updateHouse(id: string, updates: Partial<House>) {
     const updatedItem = { ...houses.find(h => h.id === id)!, ...updates, updatedAt: today() };
     setHouses(prev => prev.map(h => h.id === id ? updatedItem : h));
-    await fsSaveDoc('houses', updatedItem);
+    await _fsWrite('houses', updatedItem);
   }
 
   async function deleteHouse(id: string) {
     setHouses(prev => prev.filter(h => h.id !== id));
-    await fsDeleteDoc('houses', id);
+    await _fsDelete('houses', id);
   }
 
   async function bulkImportHouses(
@@ -576,7 +615,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function addWard(w: Omit<Ward, 'id'>) {
     const item: Ward = { ...w, id: uid() };
     setWards(prev => [...prev, item]);
-    await fsSaveDoc('wards', item);
+    await _fsWrite('wards', item);
   }
 
   async function updateWard(id: string, updates: Partial<Ward>) {
@@ -602,19 +641,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   async function addGroup(g: Omit<Group, 'id'>): Promise<Group> {
     const item: Group = { ...g, id: uid() };
     setGroups(prev => [...prev, item]);
-    await fsSaveDoc('groups', item);
+    await _fsWrite('groups', item);
     return item;
   }
 
   async function updateGroup(id: string, updates: Partial<Group>) {
     const updatedItem = { ...groups.find(g => g.id === id)!, ...updates };
     setGroups(prev => prev.map(g => g.id === id ? updatedItem : g));
-    await fsSaveDoc('groups', updatedItem);
+    await _fsWrite('groups', updatedItem);
   }
 
   async function deleteGroup(id: string) {
     setGroups(prev => prev.filter(g => g.id !== id));
-    await fsDeleteDoc('groups', id);
+    await _fsDelete('groups', id);
     const affected = houses.filter(h => h.groupId === id);
     if (affected.length > 0) {
       setHouses(prev => prev.map(h => h.groupId === id ? { ...h, groupId: undefined, groupName: undefined } : h));
@@ -808,6 +847,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addImportHistory, deleteImportHistory,
       getHouseByRegistration, getComplaintsByUser,
       getAttendanceByWorker, getVisitsByWorker, isTodayAttendanceMarked,
+      syncStatus,
     }}>
       {children}
     </AppContext.Provider>

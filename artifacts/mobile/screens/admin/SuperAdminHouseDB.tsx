@@ -2,9 +2,9 @@ import { Feather } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Sharing from 'expo-sharing';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet,
+  ActivityIndicator, Animated, Modal, Pressable, ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,7 +29,7 @@ const WARD_GRADS = [
 const GROUP_COLORS = ['#10B981', '#0EA5E9', '#F97316', '#8B5CF6', '#EC4899', '#EF4444', '#F59E0B', '#06B6D4'];
 
 export default function SuperAdminHouseDB() {
-  const { houses, wards, groups, users, addHouse, updateHouse, deleteHouse, addGroup, deleteGroup, addWard, updateWard, assignWorkerToWard } = useAppData();
+  const { houses, wards, groups, users, addHouse, updateHouse, deleteHouse, addGroup, deleteGroup, addWard, updateWard, assignWorkerToWard, syncStatus } = useAppData();
   const { user } = useAuth();
   const colors = useColors();
   const { showAlert } = useAlert();
@@ -51,6 +51,22 @@ export default function SuperAdminHouseDB() {
   const [showWorkerModal, setShowWorkerModal] = useState(false);
   const [workerModalWard, setWorkerModalWard] = useState<Ward | null>(null);
   const [workerSearch, setWorkerSearch] = useState('');
+
+  // Sync status pulse animation
+  const syncPulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (syncStatus === 'pending') {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(syncPulse, { toValue: 0.3, duration: 600, useNativeDriver: true }),
+          Animated.timing(syncPulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      syncPulse.stopAnimation();
+      Animated.timing(syncPulse, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    }
+  }, [syncStatus]);
   const [savingWorker, setSavingWorker] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -317,8 +333,14 @@ export default function SuperAdminHouseDB() {
               {totalHouses} total · {wards.length} wards · {groups.length} groups
             </Text>
           </View>
-          <View style={s.headerIcon}>
-            <Feather name="database" size={22} color="#fff" />
+          <View style={s.headerRight}>
+            <Animated.View style={[
+              s.syncDot,
+              { opacity: syncPulse, backgroundColor: syncStatus === 'synced' ? '#34D399' : syncStatus === 'pending' ? '#FBBF24' : '#F87171' },
+            ]} />
+            <Text style={[s.syncLabel, { color: syncStatus === 'synced' ? '#34D399' : syncStatus === 'pending' ? '#FBBF24' : '#F87171' }]}>
+              {syncStatus === 'synced' ? 'Synced' : syncStatus === 'pending' ? 'Saving…' : 'Offline'}
+            </Text>
           </View>
         </View>
         <View style={s.statRow}>
@@ -1102,7 +1124,9 @@ const s = StyleSheet.create({
   superBadgeText: { color: '#FFD700', fontSize: 10, fontFamily: 'Inter_700Bold' },
   headerTitle: { color: '#fff', fontSize: 26, fontFamily: 'Inter_700Bold' },
   headerSub: { color: '#FFFFFFAA', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  headerIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF15', justifyContent: 'center', alignItems: 'center' },
+  headerRight: { alignItems: 'flex-end', justifyContent: 'flex-start', paddingTop: 4, gap: 4 },
+  syncDot: { width: 8, height: 8, borderRadius: 4, alignSelf: 'flex-end' },
+  syncLabel: { fontSize: 10, fontFamily: 'Inter_600SemiBold', letterSpacing: 0.5 },
   statRow: { flexDirection: 'row', gap: 10 },
   statPill: { flex: 1, borderRadius: 14, padding: 12, alignItems: 'center' },
   statNum: { color: '#fff', fontSize: 20, fontFamily: 'Inter_700Bold' },
