@@ -52,6 +52,8 @@ export default function AdminUsers() {
   /* list state */
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<RoleTab>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'frozen'>('all');
+  const [keyFilter, setKeyFilter] = useState<'all' | 'hasKey' | 'noKey'>('all');
 
   /* profile modal state */
   const [profileUser, setProfileUser] = useState<User | null>(null);
@@ -101,7 +103,27 @@ export default function AdminUsers() {
         u.id.toLowerCase().includes(q) ||
         (u.employeeId ?? '').toLowerCase().includes(q)
       );
+    })
+    .filter(u => {
+      if (statusFilter === 'active') return u.isActive === true;
+      if (statusFilter === 'frozen') return u.isActive === false;
+      return true;
+    })
+    .filter(u => {
+      if (keyFilter === 'all') return true;
+      const hasKey = secretKeys.some(k => k.usedBy === u.id);
+      if (keyFilter === 'hasKey') return hasKey;
+      if (keyFilter === 'noKey') return !hasKey;
+      return true;
     });
+
+  /* total before filters (for count label) */
+  const totalBeforeFilter = users.filter(u =>
+    activeTab === 'all'
+      ? u.role === 'safaikarmi' || u.role === 'official' || u.role === 'admin'
+      : u.role === activeTab
+  ).length;
+  const filtersActive = search.trim() !== '' || statusFilter !== 'all' || keyFilter !== 'all';
 
   function getUserKey(userId: string) {
     return secretKeys.find(k => k.usedBy === userId) ?? null;
@@ -285,13 +307,14 @@ export default function AdminUsers() {
         })}
       </ScrollView>
 
-      {/* ── Search bar ── */}
+      {/* ── Search + Filter bar ── */}
       <View style={[s.searchWrap, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+        {/* Search row */}
         <View style={[s.searchBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Feather name="search" size={16} color={colors.mutedForeground} />
           <TextInput
             style={[s.searchInput, { color: colors.text }]}
-            placeholder="Search name or ID…"
+            placeholder="Search name, ID or employee ID…"
             placeholderTextColor={colors.mutedForeground}
             value={search}
             onChangeText={setSearch}
@@ -301,6 +324,83 @@ export default function AdminUsers() {
             <Pressable onPress={() => setSearch('')}>
               <Feather name="x-circle" size={15} color={colors.mutedForeground} />
             </Pressable>
+          )}
+        </View>
+
+        {/* Filter chips row */}
+        <View style={s.filterRow}>
+          {/* Status chips */}
+          <View style={s.filterGroup}>
+            <Feather name="activity" size={10} color={colors.mutedForeground} style={{ marginRight: 2 }} />
+            {(['all', 'active', 'frozen'] as const).map(opt => {
+              const active = statusFilter === opt;
+              const chipColor = opt === 'active' ? '#10B981' : opt === 'frozen' ? '#EF4444' : currentTab.grad[0];
+              return (
+                <TouchableOpacity
+                  key={opt}
+                  activeOpacity={0.75}
+                  onPress={() => setStatusFilter(opt)}
+                  style={[
+                    s.filterChip,
+                    active
+                      ? { backgroundColor: chipColor, borderColor: chipColor }
+                      : { backgroundColor: 'transparent', borderColor: colors.border },
+                  ]}
+                >
+                  {opt !== 'all' && (
+                    <View style={[s.filterDot, { backgroundColor: active ? '#fff' : chipColor }]} />
+                  )}
+                  <Text style={[s.filterChipText, { color: active ? '#fff' : colors.mutedForeground }]}>
+                    {opt === 'all' ? 'All' : opt === 'active' ? 'Active' : 'Frozen'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Key chips (hidden on citizen tab) */}
+          {activeTab !== 'citizen' && (
+            <View style={s.filterGroup}>
+              <Feather name="key" size={10} color={colors.mutedForeground} style={{ marginRight: 2 }} />
+              {(['all', 'hasKey', 'noKey'] as const).map(opt => {
+                const active = keyFilter === opt;
+                const chipColor = opt === 'hasKey' ? '#6366F1' : opt === 'noKey' ? '#F59E0B' : currentTab.grad[0];
+                return (
+                  <TouchableOpacity
+                    key={opt}
+                    activeOpacity={0.75}
+                    onPress={() => setKeyFilter(opt)}
+                    style={[
+                      s.filterChip,
+                      active
+                        ? { backgroundColor: chipColor, borderColor: chipColor }
+                        : { backgroundColor: 'transparent', borderColor: colors.border },
+                    ]}
+                  >
+                    <Text style={[s.filterChipText, { color: active ? '#fff' : colors.mutedForeground }]}>
+                      {opt === 'all' ? 'Any' : opt === 'hasKey' ? 'Has Key' : 'No Key'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Result count + clear all */}
+          {filtersActive && (
+            <View style={s.filterResultRow}>
+              <Text style={[s.filterCount, { color: colors.mutedForeground }]}>
+                {tabList.length}/{totalBeforeFilter}
+              </Text>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => { setSearch(''); setStatusFilter('all'); setKeyFilter('all'); }}
+                style={[s.clearAllBtn, { borderColor: colors.border }]}
+              >
+                <Feather name="x" size={9} color={colors.mutedForeground} />
+                <Text style={[s.clearAllText, { color: colors.mutedForeground }]}>Clear</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       </View>
@@ -314,7 +414,7 @@ export default function AdminUsers() {
             ? countSafaikarmi + countOfficial + countAdmin
             : users.filter(u => u.role === tab.key).length;
           return (
-            <TouchableOpacity key={tab.key} style={s.tabItem} onPress={() => setActiveTab(tab.key)} activeOpacity={0.75}>
+            <TouchableOpacity key={tab.key} style={s.tabItem} onPress={() => { setActiveTab(tab.key); setStatusFilter('all'); setKeyFilter('all'); setSearch(''); }} activeOpacity={0.75}>
               {active ? (
                 <LinearGradient colors={tab.grad} style={s.tabPillActive}>
                   <Feather name={tab.icon as any} size={13} color="#fff" />
@@ -933,10 +1033,19 @@ const s = StyleSheet.create({
   statCount:   { fontSize: 22, fontFamily: 'Inter_700Bold', color: '#fff', lineHeight: 26 },
   statLabel:   { fontSize: 10, fontFamily: 'Inter_500Medium', color: 'rgba(255,255,255,0.82)', letterSpacing: 0.2 },
 
-  /* search */
-  searchWrap:  { padding: 12, paddingBottom: 10, borderBottomWidth: 1 },
-  searchBox:   { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
-  searchInput: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', padding: 0 },
+  /* search + filters */
+  searchWrap:     { padding: 12, paddingBottom: 8, borderBottomWidth: 1, gap: 8 },
+  searchBox:      { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
+  searchInput:    { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', padding: 0 },
+  filterRow:      { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  filterGroup:    { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  filterChip:     { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 99, borderWidth: 1, paddingHorizontal: 9, paddingVertical: 4 },
+  filterChipText: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
+  filterDot:      { width: 5, height: 5, borderRadius: 3 },
+  filterResultRow:{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' },
+  filterCount:    { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
+  clearAllBtn:    { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 99, borderWidth: 1, paddingHorizontal: 7, paddingVertical: 3 },
+  clearAllText:   { fontSize: 9, fontFamily: 'Inter_600SemiBold' },
 
   /* tabs */
   tabRow:  { flexDirection: 'row', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1 },
