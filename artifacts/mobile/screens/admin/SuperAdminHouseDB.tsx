@@ -29,7 +29,7 @@ const WARD_GRADS = [
 const GROUP_COLORS = ['#10B981', '#0EA5E9', '#F97316', '#8B5CF6', '#EC4899', '#EF4444', '#F59E0B', '#06B6D4'];
 
 export default function SuperAdminHouseDB() {
-  const { houses, wards, groups, users, addHouse, updateHouse, deleteHouse, addGroup, updateGroup, deleteGroup, addWard, updateWard, deleteWard, assignWorkerToWard, syncStatus } = useAppData();
+  const { houses, wards, groups, users, addHouse, updateHouse, deleteHouse, addGroup, updateGroup, deleteGroup, addWard, updateWard, deleteWard, assignWorkerToWard, assignGroupToHouses, removeGroupFromHouses, syncStatus } = useAppData();
   const { user } = useAuth();
   const colors = useColors();
   const { showAlert } = useAlert();
@@ -59,6 +59,12 @@ export default function SuperAdminHouseDB() {
   const [showEditGroupModal, setShowEditGroupModal] = useState(false);
   const [editingGroup, setEditingGroup] = useState<Group | null>(null);
   const [editGroupForm, setEditGroupForm] = useState({ name: '', description: '' });
+  // Multi-select & move
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedHouseIds, setSelectedHouseIds] = useState<string[]>([]);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [moveWardId, setMoveWardId] = useState<string>('');
+  const [moveGroupId, setMoveGroupId] = useState<string | null>(null); // null = ungrouped
 
   // Sync status pulse animation
   const syncPulse = useRef(new Animated.Value(1)).current;
@@ -98,8 +104,84 @@ export default function SuperAdminHouseDB() {
   }
 
   function goBack() {
-    if (view === 'houses') { setView('groups'); setExpandedHouseId(null); setSearch(''); }
+    if (view === 'houses') {
+      setView('groups'); setExpandedHouseId(null); setSearch('');
+      exitSelectionMode();
+    }
     else if (view === 'groups') { setView('wards'); setSelectedWard(null); setSearch(''); }
+  }
+
+  function exitSelectionMode() {
+    setSelectionMode(false);
+    setSelectedHouseIds([]);
+  }
+
+  function toggleHouseSelection(id: string) {
+    setSelectedHouseIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  }
+
+  function openMoveModal() {
+    const defaultWardId = selectedWard?.id ?? wards[0]?.id ?? '';
+    setMoveWardId(defaultWardId);
+    setMoveGroupId(null);
+    setShowMoveModal(true);
+  }
+
+  async function handleMoveHouses() {
+    if (selectedHouseIds.length === 0) return;
+    setSaving(true);
+    try {
+      const targetWard = wards.find(w => w.id === moveWardId);
+      const targetGroup = moveGroupId ? groups.find(g => g.id === moveGroupId) : null;
+      const isCrossWard = targetWard && targetWard.id !== selectedWard?.id;
+
+      if (isCrossWard || (moveGroupId === null)) {
+        // Update each house individually (cross-ward or ungroup)
+        await Promise.all(selectedHouseIds.map(id =>
+          updateHouse(id, {
+            wardId: targetWard?.id ?? selectedWard?.id,
+            wardNumber: targetWard?.wardNumber ?? selectedWard?.wardNumber,
+            groupId: targetGroup?.id,
+            groupName: targetGroup?.name,
+          })
+        ));
+      } else if (targetGroup) {
+        // Same ward, different group — use batch API
+        await assignGroupToHouses(selectedHouseIds, targetGroup.id, targetGroup.name);
+      }
+
+      setShowMoveModal(false);
+      exitSelectionMode();
+      showAlert('Done', `${selectedHouseIds.length} house(s) moved successfully.`, undefined, 'success');
+    } catch (e) {
+      showAlert('Error', 'Failed to move houses. Please try again.', undefined, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleUngroupSelected() {
+    if (selectedHouseIds.length === 0) return;
+    showAlert(
+      'Ungroup Houses?',
+      `Remove ${selectedHouseIds.length} house(s) from their group?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Ungroup', style: 'destructive', onPress: async () => {
+            setSaving(true);
+            try {
+              await removeGroupFromHouses(selectedHouseIds);
+              exitSelectionMode();
+              showAlert('Done', 'Houses ungrouped.', undefined, 'success');
+            } finally { setSaving(false); }
+          }
+        },
+      ],
+      'warning'
+    );
   }
 
   const wardGroups = groups;
@@ -664,17 +746,63 @@ export default function SuperAdminHouseDB() {
             <Text style={[s.colHeaderCell, { flex: 1.2, color: colors.mutedForeground }]}>Owner Name</Text>
           </View>
 
+          {/* Selection action bar */}
+          {selectionMode && (
+            <View style={[s.selBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+              <TouchableOpacity onPress={exitSelectionMode} style={s.selBarCancel}>
+                <Feather name="x" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+              <Text style={[s.selBarCount, { color: colors.text }]}>
+                {selectedHouseIds.length} selected
+              </Text>
+              <View style={s.selBarActions}>
+                <TouchableOpacity
+                  style={[s.selActionBtn, { backgroundColor: '#F9731615', borderColor: '#F9731640' }]}
+                  onPress={handleUngroupSelected}
+                  disabled={selectedHouseIds.length === 0 || saving}
+                >
+                  <Feather name="link-2" size={14} color="#F97316" />
+                  <Text style={[s.selActionText, { color: '#F97316' }]}>Ungroup</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.selActionBtn, { backgroundColor: '#6366F115', borderColor: '#6366F140' }]}
+                  onPress={openMoveModal}
+                  disabled={selectedHouseIds.length === 0 || saving}
+                >
+                  <Feather name="move" size={14} color="#6366F1" />
+                  <Text style={[s.selActionText, { color: '#6366F1' }]}>Move</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           <ScrollView contentContainerStyle={{ paddingBottom: 170 }}>
             {houseList.map((h, idx) => {
-              const isExpanded = expandedHouseId === h.id;
+              const isExpanded = expandedHouseId === h.id && !selectionMode;
+              const isSelected = selectedHouseIds.includes(h.id);
               return (
                 <View key={h.id}>
                   <TouchableOpacity
-                    style={[s.houseRow, { borderBottomColor: colors.border, backgroundColor: isExpanded ? '#6366F108' : colors.background }]}
-                    onPress={() => setExpandedHouseId(isExpanded ? null : h.id)}
+                    style={[s.houseRow, {
+                      borderBottomColor: colors.border,
+                      backgroundColor: isSelected ? '#6366F112' : isExpanded ? '#6366F108' : colors.background,
+                    }]}
+                    onPress={() => {
+                      if (selectionMode) { toggleHouseSelection(h.id); }
+                      else { setExpandedHouseId(isExpanded ? null : h.id); }
+                    }}
+                    onLongPress={() => {
+                      if (!selectionMode) { setSelectionMode(true); setExpandedHouseId(null); }
+                      toggleHouseSelection(h.id);
+                    }}
                     activeOpacity={0.85}
                   >
-                    <Text style={[s.houseCell, { width: 40, color: colors.mutedForeground }]}>{idx + 1}</Text>
+                    {selectionMode
+                      ? <View style={[s.checkbox, { borderColor: isSelected ? '#6366F1' : colors.border, backgroundColor: isSelected ? '#6366F1' : 'transparent' }]}>
+                          {isSelected && <Feather name="check" size={11} color="#fff" />}
+                        </View>
+                      : <Text style={[s.houseCell, { width: 40, color: colors.mutedForeground }]}>{idx + 1}</Text>
+                    }
                     <View style={[s.colDivider, { backgroundColor: colors.border }]} />
                     <View style={[s.houseCellFlex, { flex: 1 }]}>
                       <View style={s.regDot} />
@@ -683,7 +811,7 @@ export default function SuperAdminHouseDB() {
                     <View style={[s.colDivider, { backgroundColor: colors.border }]} />
                     <View style={[s.houseCellFlex, { flex: 1.2 }]}>
                       <Text style={[s.ownerText, { color: colors.text }]} numberOfLines={1}>{h.ownerName}</Text>
-                      <Feather name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color={colors.mutedForeground} />
+                      {!selectionMode && <Feather name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color={colors.mutedForeground} />}
                     </View>
                   </TouchableOpacity>
 
@@ -1113,6 +1241,77 @@ export default function SuperAdminHouseDB() {
         </SafeAreaView>
       </Modal>
 
+      {/* ── MOVE HOUSES MODAL ── */}
+      <Modal visible={showMoveModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <LinearGradient colors={['#4F46E5', '#7C3AED']} style={s.modalHdr}>
+            <Text style={s.modalTitle}>Move {selectedHouseIds.length} House(s)</Text>
+            <Pressable onPress={() => setShowMoveModal(false)} style={s.closeBtn}>
+              <Feather name="x" size={20} color="#fff" />
+            </Pressable>
+          </LinearGradient>
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+            {/* Ward picker */}
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Target Ward</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {wards.map(w => (
+                <TouchableOpacity
+                  key={w.id}
+                  onPress={() => { setMoveWardId(w.id); setMoveGroupId(null); }}
+                  style={[s.moveWardChip, {
+                    backgroundColor: moveWardId === w.id ? '#4F46E5' : colors.card,
+                    borderColor: moveWardId === w.id ? '#4F46E5' : colors.border,
+                  }]}
+                >
+                  <Text style={[s.moveWardChipText, { color: moveWardId === w.id ? '#fff' : colors.text }]}>
+                    W{w.wardNumber} · {w.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Group picker */}
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Target Group</Text>
+            {/* Ungrouped option */}
+            <TouchableOpacity
+              onPress={() => setMoveGroupId(null)}
+              style={[s.moveGroupRow, {
+                backgroundColor: moveGroupId === null ? '#F9731615' : colors.card,
+                borderColor: moveGroupId === null ? '#F97316' : colors.border,
+              }]}
+            >
+              <View style={[s.groupDot, { backgroundColor: '#94A3B8' }]} />
+              <Text style={[s.moveGroupName, { color: colors.text }]}>Ungrouped</Text>
+              {moveGroupId === null && <Feather name="check" size={16} color="#F97316" />}
+            </TouchableOpacity>
+            {groups.filter(g => g.wardId === moveWardId).map((g, idx) => (
+              <TouchableOpacity
+                key={g.id}
+                onPress={() => setMoveGroupId(g.id)}
+                style={[s.moveGroupRow, {
+                  backgroundColor: moveGroupId === g.id ? '#6366F115' : colors.card,
+                  borderColor: moveGroupId === g.id ? '#6366F1' : colors.border,
+                }]}
+              >
+                <View style={[s.groupDot, { backgroundColor: g.color || GROUP_COLORS[idx % GROUP_COLORS.length] }]} />
+                <Text style={[s.moveGroupName, { color: colors.text }]}>{g.name}</Text>
+                {g.description ? <Text style={[s.moveGroupDesc, { color: colors.mutedForeground }]} numberOfLines={1}>{g.description}</Text> : null}
+                {moveGroupId === g.id && <Feather name="check" size={16} color="#6366F1" />}
+              </TouchableOpacity>
+            ))}
+            {groups.filter(g => g.wardId === moveWardId).length === 0 && (
+              <Text style={[s.modalSub, { color: colors.mutedForeground, paddingVertical: 8 }]}>No groups in this ward — houses will be ungrouped.</Text>
+            )}
+
+            <TouchableOpacity onPress={handleMoveHouses} disabled={saving} activeOpacity={0.85}>
+              <LinearGradient colors={['#4F46E5', '#7C3AED']} style={s.saveBtn}>
+                <Text style={s.saveBtnText}>{saving ? 'Moving…' : `Move ${selectedHouseIds.length} House(s)`}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
       {/* ── EDIT WARD MODAL ── */}
       <Modal visible={showEditWardModal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -1324,6 +1523,20 @@ const s = StyleSheet.create({
   detailValue: { fontSize: 13, fontFamily: 'Inter_600SemiBold', maxWidth: '60%', textAlign: 'right' },
   empty: { borderRadius: 16, padding: 40, alignItems: 'center', gap: 12 },
   emptyText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
+  // Selection bar
+  selBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1 },
+  selBarCancel: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  selBarCount: { flex: 1, fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  selBarActions: { flexDirection: 'row', gap: 8 },
+  selActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  selActionText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  checkbox: { width: 20, height: 20, borderRadius: 6, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center', marginLeft: 10 },
+  // Move modal
+  moveWardChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
+  moveWardChipText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  moveGroupRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
+  moveGroupName: { flex: 1, fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  moveGroupDesc: { fontSize: 11, fontFamily: 'Inter_400Regular', maxWidth: '35%', textAlign: 'right' },
   fab: { position: 'absolute', bottom: 125, right: 20 },
   fabGrad: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
   modalHdr: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20 },
