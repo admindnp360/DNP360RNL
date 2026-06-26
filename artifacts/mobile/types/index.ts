@@ -67,8 +67,8 @@ export interface House {
 export interface Group {
   id: string;
   name: string;
-  wardId: string;
-  wardNumber: string;
+  wardId?: string;
+  wardNumber?: string;
   description?: string;
   color?: string;
   createdAt: string;

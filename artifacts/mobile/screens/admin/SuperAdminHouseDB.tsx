@@ -29,7 +29,7 @@ const WARD_GRADS = [
 const GROUP_COLORS = ['#10B981', '#0EA5E9', '#F97316', '#8B5CF6', '#EC4899', '#EF4444', '#F59E0B', '#06B6D4'];
 
 export default function SuperAdminHouseDB() {
-  const { houses, wards, groups, addHouse, updateHouse, deleteHouse, addGroup, deleteGroup } = useAppData();
+  const { houses, wards, groups, addHouse, updateHouse, deleteHouse, addGroup, deleteGroup, addWard } = useAppData();
   const { user } = useAuth();
   const colors = useColors();
   const { showAlert } = useAlert();
@@ -46,6 +46,8 @@ export default function SuperAdminHouseDB() {
 
   const [houseForm, setHouseForm] = useState({ ownerName: '', fatherOrHusband: '', mobile: '', address: '', propertyType: 'Residential' as any });
   const [groupForm, setGroupForm] = useState({ name: '', description: '', color: GROUP_COLORS[0] });
+  const [wardForm, setWardForm] = useState({ wardNumber: '', name: '', area: '' });
+  const [showAddWardModal, setShowAddWardModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -72,13 +74,16 @@ export default function SuperAdminHouseDB() {
     else if (view === 'groups') { setView('wards'); setSelectedWard(null); setSearch(''); }
   }
 
-  const wardGroups = selectedWard ? groups.filter(g => g.wardId === selectedWard.id) : [];
+  const wardGroups = groups;
 
   const houseList = (() => {
-    if (!selectedWard) return [];
-    let list = houses.filter(h => h.wardId === selectedWard.id);
+    let list: House[];
     if (selectedGroup !== null) {
-      list = list.filter(h => h.groupId === selectedGroup.id);
+      list = houses.filter(h => h.groupId === selectedGroup.id);
+    } else if (selectedWard) {
+      list = houses.filter(h => h.wardId === selectedWard.id);
+    } else {
+      return [];
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -121,8 +126,31 @@ export default function SuperAdminHouseDB() {
     } finally { setSaving(false); }
   }
 
+  async function handleAddWard() {
+    if (!wardForm.wardNumber.trim() || !wardForm.name.trim()) {
+      showAlert('Missing', 'Ward number and name are required.', undefined, 'warning');
+      return;
+    }
+    if (wards.some(w => w.wardNumber === wardForm.wardNumber.trim())) {
+      showAlert('Duplicate', `Ward ${wardForm.wardNumber} already exists.`, undefined, 'warning');
+      return;
+    }
+    setSaving(true);
+    try {
+      await addWard({
+        wardNumber: wardForm.wardNumber.trim(),
+        name: wardForm.name.trim(),
+        area: wardForm.area.trim() || wardForm.name.trim(),
+        assignedWorkers: [],
+        totalHouses: 0,
+      });
+      setWardForm({ wardNumber: '', name: '', area: '' });
+      setShowAddWardModal(false);
+      showAlert('Ward Created', wardForm.name.trim(), undefined, 'success');
+    } finally { setSaving(false); }
+  }
+
   async function handleAddGroup() {
-    if (!selectedWard) return;
     if (!groupForm.name.trim()) {
       showAlert('Missing', 'Group name is required.', undefined, 'warning');
       return;
@@ -132,8 +160,6 @@ export default function SuperAdminHouseDB() {
       await addGroup({
         name: groupForm.name.trim(),
         description: groupForm.description.trim(),
-        wardId: selectedWard.id,
-        wardNumber: selectedWard.wardNumber,
         color: groupForm.color,
         createdAt: new Date().toISOString().split('T')[0],
         createdBy: user?.name,
@@ -319,7 +345,27 @@ export default function SuperAdminHouseDB() {
       {/* ── WARDS VIEW ── */}
       {view === 'wards' && (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 170 }}>
-          <Text style={[s.sectionLabel, { color: '#6366F1' }]}>All Wards</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+            <Text style={[s.sectionLabel, { color: '#6366F1' }]}>All Wards</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={[s.actionChip, { backgroundColor: '#10B98115', borderColor: '#10B98140' }]}
+                onPress={() => setShowAddGroupModal(true)}
+                activeOpacity={0.8}
+              >
+                <Feather name="layers" size={13} color="#10B981" />
+                <Text style={[s.actionChipText, { color: '#10B981' }]}>Add Group</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.actionChip, { backgroundColor: '#4F46E515', borderColor: '#4F46E540' }]}
+                onPress={() => setShowAddWardModal(true)}
+                activeOpacity={0.8}
+              >
+                <Feather name="map-pin" size={13} color="#6366F1" />
+                <Text style={[s.actionChipText, { color: '#6366F1' }]}>Add Ward</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
           {wards.map((ward, idx) => {
             const grad = WARD_GRADS[idx % WARD_GRADS.length];
             const wardHouses = houses.filter(h => h.wardId === ward.id).length;
@@ -366,6 +412,16 @@ export default function SuperAdminHouseDB() {
       {/* ── GROUPS VIEW ── */}
       {view === 'groups' && selectedWard && (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 170 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+            <Text style={[s.sectionLabel, { color: '#6366F1' }]}>
+              All Groups · {groups.length}
+            </Text>
+            <View style={[s.crossWardBadge]}>
+              <Feather name="shuffle" size={10} color="#F97316" />
+              <Text style={s.crossWardText}>Cross-ward</Text>
+            </View>
+          </View>
+
           <TouchableOpacity
             style={[s.allHousesCard, { backgroundColor: colors.card, borderColor: '#6366F1' }]}
             onPress={() => goToHouses(null)}
@@ -419,6 +475,13 @@ export default function SuperAdminHouseDB() {
               </TouchableOpacity>
             );
           })}
+
+          {wardGroups.length === 0 && (
+            <View style={[s.empty, { backgroundColor: colors.card }]}>
+              <Feather name="layers" size={32} color={colors.mutedForeground} />
+              <Text style={[s.emptyText, { color: colors.mutedForeground }]}>No groups yet</Text>
+            </View>
+          )}
 
           <TouchableOpacity
             style={[s.addGroupBtn, { borderColor: '#6366F160' }]}
@@ -749,6 +812,50 @@ export default function SuperAdminHouseDB() {
         </View>
       </Modal>
 
+      {/* ── ADD WARD MODAL ── */}
+      <Modal visible={showAddWardModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <LinearGradient colors={['#4F46E5', '#7C3AED']} style={s.modalHdr}>
+            <Text style={s.modalTitle}>Add Ward</Text>
+            <Pressable onPress={() => setShowAddWardModal(false)} style={s.closeBtn}>
+              <Feather name="x" size={20} color="#fff" />
+            </Pressable>
+          </LinearGradient>
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }}>
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Ward Number *</Text>
+            <TextInput
+              style={[s.fieldInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+              placeholder="e.g. 5"
+              placeholderTextColor={colors.mutedForeground}
+              keyboardType="number-pad"
+              value={wardForm.wardNumber}
+              onChangeText={v => setWardForm(p => ({ ...p, wardNumber: v }))}
+            />
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Ward Name *</Text>
+            <TextInput
+              style={[s.fieldInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+              placeholder="e.g. Qila Mohalla"
+              placeholderTextColor={colors.mutedForeground}
+              value={wardForm.name}
+              onChangeText={v => setWardForm(p => ({ ...p, name: v }))}
+            />
+            <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>Area / Locality</Text>
+            <TextInput
+              style={[s.fieldInput, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
+              placeholder="e.g. Near Daudnagar Chowk"
+              placeholderTextColor={colors.mutedForeground}
+              value={wardForm.area}
+              onChangeText={v => setWardForm(p => ({ ...p, area: v }))}
+            />
+            <TouchableOpacity onPress={handleAddWard} disabled={saving} activeOpacity={0.85}>
+              <LinearGradient colors={['#4F46E5', '#7C3AED']} style={s.saveBtn}>
+                <Text style={s.saveBtnText}>{saving ? 'Creating…' : 'Create Ward'}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
       {/* ── ADD GROUP MODAL ── */}
       <Modal visible={showAddGroupModal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -899,4 +1006,8 @@ const s = StyleSheet.create({
   colorDotSelected: { borderWidth: 3, borderColor: '#fff' },
   saveBtn: { borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 8 },
   saveBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },
+  actionChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+  actionChipText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  crossWardBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F9731615', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 4 },
+  crossWardText: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: '#F97316' },
 });

@@ -37,13 +37,16 @@ export default function SuperAdminGroups() {
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [assigning, setAssigning] = useState(false);
 
-  const wardGroups = selectedWard ? groups.filter(g => g.wardId === selectedWard.id) : [];
+  const wardGroups = groups;
 
   const wardHouses = (() => {
-    if (!selectedWard) return [];
-    let list = houses.filter(h => h.wardId === selectedWard.id);
+    let list: typeof houses;
     if (selectedGroupFilter) {
-      list = list.filter(h => h.groupId === selectedGroupFilter.id);
+      list = houses.filter(h => h.groupId === selectedGroupFilter.id);
+    } else if (selectedWard) {
+      list = houses.filter(h => h.wardId === selectedWard.id);
+    } else {
+      return [];
     }
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -122,8 +125,8 @@ export default function SuperAdminGroups() {
   }
 
   const assignableGroups = selectedGroupFilter
-    ? wardGroups.filter(g => g.id !== selectedGroupFilter.id)
-    : wardGroups;
+    ? groups.filter(g => g.id !== selectedGroupFilter.id)
+    : groups;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -164,15 +167,21 @@ export default function SuperAdminGroups() {
       ) : viewMode === 'groups' ? (
         /* ── GROUP CARDS VIEW ── */
         <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 120 }}>
-          <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
-            Ward {selectedWard.wardNumber} · {wardGroups.length} group{wardGroups.length !== 1 ? 's' : ''}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
+              All Groups · {wardGroups.length}
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F9731615', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 4 }}>
+              <Feather name="shuffle" size={10} color="#F97316" />
+              <Text style={{ fontSize: 10, fontFamily: 'Inter_600SemiBold', color: '#F97316' }}>Cross-ward</Text>
+            </View>
+          </View>
 
           {wardGroups.length === 0 ? (
             <View style={[s.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Feather name="layers" size={32} color={colors.mutedForeground} />
               <Text style={[s.emptyTitle, { color: colors.text }]}>No Groups Yet</Text>
-              <Text style={[s.emptySub, { color: colors.mutedForeground }]}>Create groups in the House DB tab first</Text>
+              <Text style={[s.emptySub, { color: colors.mutedForeground }]}>Create groups using the House DB tab</Text>
             </View>
           ) : (
             wardGroups.map((g, idx) => {
