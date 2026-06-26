@@ -32,6 +32,7 @@ export default function SuperAdminGroups() {
   const [selectedWard, setSelectedWard] = useState<Ward | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('groups');
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<Group | null>(null);
+  const [showingUngrouped, setShowingUngrouped] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedHouseIds, setSelectedHouseIds] = useState<Set<string>>(new Set());
   const [showGroupModal, setShowGroupModal] = useState(false);
@@ -43,6 +44,8 @@ export default function SuperAdminGroups() {
     let list: typeof houses;
     if (selectedGroupFilter) {
       list = houses.filter(h => h.groupId === selectedGroupFilter.id);
+    } else if (showingUngrouped && selectedWard) {
+      list = houses.filter(h => h.wardId === selectedWard.id && !h.groupId);
     } else if (selectedWard) {
       list = houses.filter(h => h.wardId === selectedWard.id);
     } else {
@@ -63,12 +66,22 @@ export default function SuperAdminGroups() {
     setSelectedWard(ward);
     setViewMode('groups');
     setSelectedGroupFilter(null);
+    setShowingUngrouped(false);
     setSelectedHouseIds(new Set());
     setSearch('');
   }
 
   function openGroup(group: Group) {
     setSelectedGroupFilter(group);
+    setShowingUngrouped(false);
+    setViewMode('houses');
+    setSelectedHouseIds(new Set());
+    setSearch('');
+  }
+
+  function openUngrouped() {
+    setSelectedGroupFilter(null);
+    setShowingUngrouped(true);
     setViewMode('houses');
     setSelectedHouseIds(new Set());
     setSearch('');
@@ -77,6 +90,7 @@ export default function SuperAdminGroups() {
   function goBackToGroups() {
     setViewMode('groups');
     setSelectedGroupFilter(null);
+    setShowingUngrouped(false);
     setSelectedHouseIds(new Set());
     setSearch('');
   }
@@ -127,6 +141,10 @@ export default function SuperAdminGroups() {
   const assignableGroups = selectedGroupFilter
     ? groups.filter(g => g.id !== selectedGroupFilter.id)
     : groups;
+
+  const ungroupedCount = selectedWard
+    ? houses.filter(h => h.wardId === selectedWard.id && !h.groupId).length
+    : 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -213,6 +231,29 @@ export default function SuperAdminGroups() {
               );
             })
           )}
+
+          {/* Ungrouped Houses card */}
+          {ungroupedCount > 0 && (
+            <TouchableOpacity
+              style={[s.groupCard, { backgroundColor: colors.card, borderColor: '#F9731640' }]}
+              onPress={openUngrouped}
+              activeOpacity={0.85}
+            >
+              <View style={[s.groupColorBar, { backgroundColor: '#F97316' }]} />
+              <View style={[s.groupIconBox, { backgroundColor: '#F9731620' }]}>
+                <Feather name="alert-circle" size={20} color="#F97316" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.groupName, { color: colors.text }]}>Ungrouped Houses</Text>
+                <Text style={[s.groupDesc, { color: colors.mutedForeground }]}>Houses not assigned to any group</Text>
+              </View>
+              <View style={[s.countBadge, { backgroundColor: '#F9731620' }]}>
+                <Feather name="home" size={11} color="#F97316" />
+                <Text style={[s.countBadgeText, { color: '#F97316' }]}>{ungroupedCount}</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} style={{ marginLeft: 4 }} />
+            </TouchableOpacity>
+          )}
         </ScrollView>
 
       ) : (
@@ -223,14 +264,19 @@ export default function SuperAdminGroups() {
             <TouchableOpacity style={s.backBtn} onPress={goBackToGroups} activeOpacity={0.7}>
               <Feather name="arrow-left" size={18} color="#6366F1" />
             </TouchableOpacity>
-            {selectedGroupFilter && (
+            {selectedGroupFilter ? (
               <View style={[s.groupChip, { backgroundColor: (selectedGroupFilter.color || '#6366F1') + '20' }]}>
                 <View style={[s.groupChipDot, { backgroundColor: selectedGroupFilter.color || '#6366F1' }]} />
                 <Text style={[s.groupChipText, { color: selectedGroupFilter.color || '#6366F1' }]}>
                   {selectedGroupFilter.name}
                 </Text>
               </View>
-            )}
+            ) : showingUngrouped ? (
+              <View style={[s.groupChip, { backgroundColor: '#F9731620' }]}>
+                <View style={[s.groupChipDot, { backgroundColor: '#F97316' }]} />
+                <Text style={[s.groupChipText, { color: '#F97316' }]}>Ungrouped Houses</Text>
+              </View>
+            ) : null}
             <Text style={[s.houseCountLabel, { color: colors.mutedForeground }]}>
               {wardHouses.length} house{wardHouses.length !== 1 ? 's' : ''}
             </Text>
@@ -255,13 +301,15 @@ export default function SuperAdminGroups() {
               {selectedHouseIds.size > 0 && (
                 <View style={s.selectionActions}>
                   <Text style={[s.selectedCount, { color: '#4F46E5' }]}>{selectedHouseIds.size} selected</Text>
-                  <TouchableOpacity
-                    style={[s.actionBtn, { backgroundColor: '#EF444415', borderColor: '#EF444430' }]}
-                    onPress={handleRemoveGroup}
-                  >
-                    <Feather name="x-circle" size={13} color="#EF4444" />
-                    <Text style={[s.actionBtnText, { color: '#EF4444' }]}>Remove</Text>
-                  </TouchableOpacity>
+                  {!showingUngrouped && (
+                    <TouchableOpacity
+                      style={[s.actionBtn, { backgroundColor: '#EF444415', borderColor: '#EF444430' }]}
+                      onPress={handleRemoveGroup}
+                    >
+                      <Feather name="x-circle" size={13} color="#EF4444" />
+                      <Text style={[s.actionBtnText, { color: '#EF4444' }]}>Remove</Text>
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity
                     style={[s.actionBtn, { backgroundColor: '#4F46E5', borderColor: '#4F46E5' }]}
                     onPress={() => setShowGroupModal(true)}
@@ -328,8 +376,8 @@ export default function SuperAdminGroups() {
         <View style={{ flex: 1, backgroundColor: colors.background }}>
           <LinearGradient colors={['#4F46E5', '#7C3AED']} style={s.modalHdr}>
             <View style={{ flex: 1 }}>
-              <Text style={s.modalTitle}>Move to Group</Text>
-              <Text style={s.modalSub}>Move {selectedHouseIds.size} house(s) to a different group</Text>
+              <Text style={s.modalTitle}>{showingUngrouped ? 'Assign to Group' : 'Move to Group'}</Text>
+              <Text style={s.modalSub}>{showingUngrouped ? `Assign ${selectedHouseIds.size} house(s) to a group` : `Move ${selectedHouseIds.size} house(s) to a different group`}</Text>
             </View>
             <Pressable onPress={() => setShowGroupModal(false)} style={s.closeBtn}>
               <Feather name="x" size={20} color="#fff" />
