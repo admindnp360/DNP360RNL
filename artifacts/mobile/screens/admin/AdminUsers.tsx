@@ -81,11 +81,11 @@ export default function AdminUsers() {
     return 0;
   }
 
-  /* derived list — 'all' tab shows safaikarmi + official only */
+  /* derived list — 'all' tab shows safaikarmi + official + admin (no citizens) */
   const tabList = users
     .filter(u =>
       activeTab === 'all'
-        ? u.role === 'safaikarmi' || u.role === 'official'
+        ? u.role === 'safaikarmi' || u.role === 'official' || u.role === 'admin'
         : u.role === activeTab
     )
     .filter(u => {
@@ -277,8 +277,9 @@ export default function AdminUsers() {
       <View style={[s.tabRow, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         {TABS.map(tab => {
           const active = activeTab === tab.key;
+          const countAdmin = users.filter(u => u.role === 'admin').length;
           const count  = tab.key === 'all'
-            ? countSafaikarmi + countOfficial
+            ? countSafaikarmi + countOfficial + countAdmin
             : users.filter(u => u.role === tab.key).length;
           return (
             <TouchableOpacity key={tab.key} style={s.tabItem} onPress={() => setActiveTab(tab.key)} activeOpacity={0.75}>
