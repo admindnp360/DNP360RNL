@@ -4,7 +4,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useRef, useState } from 'react';
 import {
-  ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet,
+  ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet,
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -74,6 +74,7 @@ export default function SuperAdminImport() {
   const [selectedHistory, setSelectedHistory] = useState<typeof importHistory[0] | null>(null);
   const [sourceFileName, setSourceFileName] = useState('Manual CSV Import');
   const [pickingFile, setPickingFile] = useState(false);
+  const webFileInputRef = useRef<any>(null);
 
   const totalHouses = houses.length;
   const importsDone = importHistory.length;
@@ -131,43 +132,69 @@ export default function SuperAdminImport() {
     validateRows(rows);
   }
 
-  async function handlePickExcel() {
+  async function parseAndLoad(fileName: string, readFile: () => Promise<string[][] | null>) {
+    setSourceFileName(fileName);
     setPickingFile(true);
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: [
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'application/vnd.ms-excel',
-          'text/csv',
-          'text/comma-separated-values',
-          '*/*',
-        ],
-        copyToCacheDirectory: true,
-      });
-      if (result.canceled || !result.assets?.[0]) return;
-      const asset = result.assets[0];
-      const fileName = asset.name || 'Imported File';
-      setSourceFileName(fileName);
-      const isCSV = fileName.toLowerCase().endsWith('.csv');
-      if (isCSV) {
-        const text = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.UTF8 });
-        const rows = parseCSV(text);
-        setCsvText('');
-        setShowInput(false);
-        validateRows(rows);
-      } else {
-        const b64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
-        const wb = XLSX.read(b64, { type: 'base64' });
-        const sheetName = wb.SheetNames[0];
-        const sheet = wb.Sheets[sheetName];
-        const rows: string[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false }) as string[][];
-        setCsvText('');
-        setShowInput(false);
-        validateRows(rows);
-      }
+      const rows = await readFile();
+      if (!rows) return;
+      setCsvText('');
+      setShowInput(false);
+      validateRows(rows);
     } catch (e: any) {
       showAlert('File Error', e?.message ?? 'Could not read file.', undefined, 'error');
     } finally {
+      setPickingFile(false);
+    }
+  }
+
+  async function readFileNative(uri: string, isCSV: boolean): Promise<string[][]> {
+    if (isCSV) {
+      const text = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.UTF8 });
+      return parseCSV(text);
+    }
+    const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+    const wb = XLSX.read(b64, { type: 'base64' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false }) as string[][];
+  }
+
+  async function handleWebFileChange(e: any) {
+    const file: File = e?.target?.files?.[0];
+    if (!file) return;
+    const fileName = file.name || 'Imported File';
+    const isCSV = fileName.toLowerCase().endsWith('.csv');
+    await parseAndLoad(fileName, async () => {
+      const buffer = await file.arrayBuffer();
+      if (isCSV) {
+        const text = new TextDecoder('utf-8').decode(buffer);
+        return parseCSV(text);
+      }
+      const wb = XLSX.read(buffer, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false }) as string[][];
+    });
+    if (webFileInputRef.current) webFileInputRef.current.value = '';
+  }
+
+  async function handlePickExcel() {
+    if (Platform.OS === 'web') {
+      webFileInputRef.current?.click();
+      return;
+    }
+    setPickingFile(true);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['*/*'],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.[0]) { setPickingFile(false); return; }
+      const asset = result.assets[0];
+      const fileName = asset.name || 'Imported File';
+      const isCSV = fileName.toLowerCase().endsWith('.csv');
+      await parseAndLoad(fileName, () => readFileNative(asset.uri, isCSV));
+    } catch (e: any) {
+      showAlert('File Error', e?.message ?? 'Could not read file.', undefined, 'error');
       setPickingFile(false);
     }
   }
@@ -665,6 +692,18 @@ export default function SuperAdminImport() {
           </SafeAreaView>
         )}
       </Modal>
+
+      {/* Hidden web file input — rendered only on web, triggered by handlePickExcel */}
+      {Platform.OS === 'web' && (
+        // @ts-ignore
+        <input
+          ref={webFileInputRef}
+          type="file"
+          accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+          style={{ display: 'none' }}
+          onChange={handleWebFileChange}
+        />
+      )}
     </SafeAreaView>
   );
 }
