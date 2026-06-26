@@ -29,7 +29,7 @@ const WARD_GRADS = [
 const GROUP_COLORS = ['#10B981', '#0EA5E9', '#F97316', '#8B5CF6', '#EC4899', '#EF4444', '#F59E0B', '#06B6D4'];
 
 export default function SuperAdminHouseDB() {
-  const { houses, wards, groups, addHouse, updateHouse, deleteHouse, addGroup, deleteGroup, addWard } = useAppData();
+  const { houses, wards, groups, users, addHouse, updateHouse, deleteHouse, addGroup, deleteGroup, addWard, updateWard, assignWorkerToWard } = useAppData();
   const { user } = useAuth();
   const colors = useColors();
   const { showAlert } = useAlert();
@@ -48,6 +48,10 @@ export default function SuperAdminHouseDB() {
   const [groupForm, setGroupForm] = useState({ name: '', description: '', color: GROUP_COLORS[0] });
   const [wardForm, setWardForm] = useState({ wardNumber: '', name: '', area: '' });
   const [showAddWardModal, setShowAddWardModal] = useState(false);
+  const [showWorkerModal, setShowWorkerModal] = useState(false);
+  const [workerModalWard, setWorkerModalWard] = useState<Ward | null>(null);
+  const [workerSearch, setWorkerSearch] = useState('');
+  const [savingWorker, setSavingWorker] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -124,6 +128,35 @@ export default function SuperAdminHouseDB() {
       setShowAddHouseModal(false);
       showAlert('House Added', `Registration: ${regNum}`, undefined, 'success');
     } finally { setSaving(false); }
+  }
+
+  const safaikarmis = users.filter(u => u.role === 'safaikarmi' && u.isActive !== false);
+
+  function openWorkerModal(ward: Ward) {
+    setWorkerModalWard(ward);
+    setWorkerSearch('');
+    setShowWorkerModal(true);
+  }
+
+  async function handleAssignWorker(workerId: string) {
+    if (!workerModalWard) return;
+    setSavingWorker(true);
+    try {
+      await assignWorkerToWard(workerModalWard.id, workerId);
+      setWorkerModalWard(prev => prev
+        ? { ...prev, assignedWorkers: prev.assignedWorkers.includes(workerId) ? prev.assignedWorkers : [...prev.assignedWorkers, workerId] }
+        : prev);
+    } finally { setSavingWorker(false); }
+  }
+
+  async function handleRemoveWorker(workerId: string) {
+    if (!workerModalWard) return;
+    const newWorkers = workerModalWard.assignedWorkers.filter(id => id !== workerId);
+    setSavingWorker(true);
+    try {
+      await updateWard(workerModalWard.id, { assignedWorkers: newWorkers });
+      setWorkerModalWard(prev => prev ? { ...prev, assignedWorkers: newWorkers } : prev);
+    } finally { setSavingWorker(false); }
   }
 
   async function handleAddWard() {
@@ -368,36 +401,65 @@ export default function SuperAdminHouseDB() {
           </View>
           {wards.map((ward, idx) => {
             const grad = WARD_GRADS[idx % WARD_GRADS.length];
-            const wardHouses = houses.filter(h => h.wardId === ward.id).length;
-            const wardGroups = groups.filter(g => g.wardId === ward.id).length;
+            const wHouses = houses.filter(h => h.wardId === ward.id).length;
+            const wWorkers = ward.assignedWorkers ?? [];
+            const assignedWorkerUsers = safaikarmis.filter(u => wWorkers.includes(u.id));
             return (
-              <TouchableOpacity
+              <View
                 key={ward.id}
                 style={[s.wardCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => goToGroups(ward)}
-                activeOpacity={0.85}
               >
-                <View style={s.wardRow}>
-                  <LinearGradient colors={grad} style={s.wardBadge}>
-                    <Text style={s.wardBadgeText}>W{ward.wardNumber}</Text>
-                  </LinearGradient>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.wardName, { color: colors.text }]}>{ward.name}</Text>
-                    <Text style={[s.wardArea, { color: colors.mutedForeground }]}>{ward.area}</Text>
-                  </View>
-                  <View style={s.wardMeta}>
-                    <View style={s.metaPill}>
-                      <Feather name="home" size={10} color={colors.mutedForeground} />
-                      <Text style={[s.metaText, { color: colors.mutedForeground }]}>{wardHouses}</Text>
+                <TouchableOpacity onPress={() => goToGroups(ward)} activeOpacity={0.85}>
+                  <View style={s.wardRow}>
+                    <LinearGradient colors={grad} style={s.wardBadge}>
+                      <Text style={s.wardBadgeText}>W{ward.wardNumber}</Text>
+                    </LinearGradient>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.wardName, { color: colors.text }]}>{ward.name}</Text>
+                      <Text style={[s.wardArea, { color: colors.mutedForeground }]}>{ward.area}</Text>
                     </View>
-                    <View style={s.metaPill}>
-                      <Feather name="layers" size={10} color={colors.mutedForeground} />
-                      <Text style={[s.metaText, { color: colors.mutedForeground }]}>{wardGroups}</Text>
+                    <View style={s.wardMeta}>
+                      <View style={s.metaPill}>
+                        <Feather name="home" size={10} color={colors.mutedForeground} />
+                        <Text style={[s.metaText, { color: colors.mutedForeground }]}>{wHouses}</Text>
+                      </View>
+                      <View style={s.metaPill}>
+                        <Feather name="users" size={10} color={colors.mutedForeground} />
+                        <Text style={[s.metaText, { color: colors.mutedForeground }]}>{wWorkers.length}</Text>
+                      </View>
+                      <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
                     </View>
-                    <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
                   </View>
+                </TouchableOpacity>
+
+                {/* Worker chips row */}
+                <View style={s.workerChipRow}>
+                  {assignedWorkerUsers.slice(0, 3).map(w => (
+                    <View key={w.id} style={[s.workerChip, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                      <View style={[s.workerAvatar, { backgroundColor: grad[0] + '30' }]}>
+                        <Text style={[s.workerAvatarText, { color: grad[0] }]}>{w.name.charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <Text style={[s.workerChipName, { color: colors.text }]} numberOfLines={1}>{w.name}</Text>
+                    </View>
+                  ))}
+                  {assignedWorkerUsers.length > 3 && (
+                    <View style={[s.workerChipMore, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                      <Text style={[s.workerChipMoreText, { color: colors.mutedForeground }]}>+{assignedWorkerUsers.length - 3}</Text>
+                    </View>
+                  )}
+                  {assignedWorkerUsers.length === 0 && (
+                    <Text style={[s.noWorkerText, { color: colors.mutedForeground }]}>No workers assigned</Text>
+                  )}
+                  <TouchableOpacity
+                    style={[s.manageWorkersBtn, { backgroundColor: '#4F46E515', borderColor: '#4F46E540' }]}
+                    onPress={() => openWorkerModal(ward)}
+                    activeOpacity={0.8}
+                  >
+                    <Feather name="user-plus" size={12} color="#6366F1" />
+                    <Text style={[s.manageWorkersBtnText, { color: '#6366F1' }]}>Manage</Text>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
+              </View>
             );
           })}
           {wards.length === 0 && (
@@ -812,6 +874,135 @@ export default function SuperAdminHouseDB() {
         </View>
       </Modal>
 
+      {/* ── WORKER ASSIGNMENT MODAL ── */}
+      <Modal visible={showWorkerModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <LinearGradient colors={['#4F46E5', '#7C3AED']} style={s.modalHdr}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.modalTitle}>Worker Assignment</Text>
+              <Text style={[s.modalSub, { color: '#FFFFFFAA' }]}>
+                Ward {workerModalWard?.wardNumber} — {workerModalWard?.name}
+              </Text>
+            </View>
+            <Pressable onPress={() => setShowWorkerModal(false)} style={s.closeBtn}>
+              <Feather name="x" size={20} color="#fff" />
+            </Pressable>
+          </LinearGradient>
+
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }}>
+            {/* Currently assigned */}
+            <View>
+              <Text style={[s.workerSectionTitle, { color: colors.mutedForeground }]}>
+                ASSIGNED ({workerModalWard?.assignedWorkers.length ?? 0})
+              </Text>
+              {(workerModalWard?.assignedWorkers ?? []).length === 0 ? (
+                <View style={[s.workerEmptyBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Feather name="users" size={22} color={colors.mutedForeground} />
+                  <Text style={[s.workerEmptyText, { color: colors.mutedForeground }]}>No workers assigned yet</Text>
+                </View>
+              ) : (
+                <View style={{ gap: 8 }}>
+                  {(workerModalWard?.assignedWorkers ?? []).map(wid => {
+                    const w = safaikarmis.find(u => u.id === wid);
+                    if (!w) return null;
+                    return (
+                      <View key={wid} style={[s.workerRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <View style={[s.workerAvatarLg, { backgroundColor: '#4F46E520' }]}>
+                          <Text style={[s.workerAvatarLgText, { color: '#6366F1' }]}>{w.name.charAt(0).toUpperCase()}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[s.workerRowName, { color: colors.text }]}>{w.name}</Text>
+                          <Text style={[s.workerRowId, { color: colors.mutedForeground }]}>{w.id} · {w.mobile || '—'}</Text>
+                        </View>
+                        <View style={[s.workerStatusBadge, { backgroundColor: '#10B98115' }]}>
+                          <Feather name="check-circle" size={11} color="#10B981" />
+                          <Text style={[s.workerStatusText, { color: '#10B981' }]}>Assigned</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[s.workerRemoveBtn, { backgroundColor: '#EF444415', borderColor: '#EF444430' }]}
+                          onPress={() => handleRemoveWorker(wid)}
+                          disabled={savingWorker}
+                          activeOpacity={0.8}
+                        >
+                          <Feather name="user-minus" size={14} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+
+            {/* Search + available workers */}
+            <View>
+              <Text style={[s.workerSectionTitle, { color: colors.mutedForeground }]}>ADD WORKERS</Text>
+              <View style={[s.workerSearchBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Feather name="search" size={14} color={colors.mutedForeground} />
+                <TextInput
+                  style={[s.workerSearchInput, { color: colors.text }]}
+                  placeholder="Search by name or ID..."
+                  placeholderTextColor={colors.mutedForeground}
+                  value={workerSearch}
+                  onChangeText={setWorkerSearch}
+                />
+                {workerSearch.length > 0 && (
+                  <TouchableOpacity onPress={() => setWorkerSearch('')}>
+                    <Feather name="x" size={14} color={colors.mutedForeground} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <View style={{ gap: 8, marginTop: 10 }}>
+                {safaikarmis
+                  .filter(u => {
+                    const isAssigned = workerModalWard?.assignedWorkers.includes(u.id);
+                    if (isAssigned) return false;
+                    if (!workerSearch.trim()) return true;
+                    const q = workerSearch.toLowerCase();
+                    return u.name.toLowerCase().includes(q) || u.id.toLowerCase().includes(q);
+                  })
+                  .map(w => {
+                    const otherWard = wards.find(wd => wd.assignedWorkers.includes(w.id) && wd.id !== workerModalWard?.id);
+                    return (
+                      <View key={w.id} style={[s.workerRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <View style={[s.workerAvatarLg, { backgroundColor: '#10B98120' }]}>
+                          <Text style={[s.workerAvatarLgText, { color: '#10B981' }]}>{w.name.charAt(0).toUpperCase()}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[s.workerRowName, { color: colors.text }]}>{w.name}</Text>
+                          <Text style={[s.workerRowId, { color: colors.mutedForeground }]}>
+                            {w.id}{otherWard ? ` · Also W${otherWard.wardNumber}` : ''}
+                          </Text>
+                        </View>
+                        {otherWard && (
+                          <View style={[s.workerStatusBadge, { backgroundColor: '#F9731615' }]}>
+                            <Feather name="alert-circle" size={11} color="#F97316" />
+                            <Text style={[s.workerStatusText, { color: '#F97316' }]}>W{otherWard.wardNumber}</Text>
+                          </View>
+                        )}
+                        <TouchableOpacity
+                          style={[s.workerAddBtn, { backgroundColor: '#4F46E5' }]}
+                          onPress={() => handleAssignWorker(w.id)}
+                          disabled={savingWorker}
+                          activeOpacity={0.8}
+                        >
+                          <Feather name="user-plus" size={14} color="#fff" />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                {safaikarmis.filter(u => !workerModalWard?.assignedWorkers.includes(u.id)).length === 0 && (
+                  <View style={[s.workerEmptyBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Feather name="check-circle" size={22} color="#10B981" />
+                    <Text style={[s.workerEmptyText, { color: colors.mutedForeground }]}>All workers assigned</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
       {/* ── ADD WARD MODAL ── */}
       <Modal visible={showAddWardModal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -1010,4 +1201,29 @@ const s = StyleSheet.create({
   actionChipText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
   crossWardBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#F9731615', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 4 },
   crossWardText: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: '#F97316' },
+  workerChipRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, paddingTop: 10, paddingHorizontal: 2, borderTopWidth: 1, borderTopColor: '#FFFFFF08', marginTop: 8 },
+  workerChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingRight: 8, paddingVertical: 3, paddingLeft: 3, borderRadius: 20, borderWidth: 1 },
+  workerAvatar: { width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  workerAvatarText: { fontSize: 10, fontFamily: 'Inter_700Bold' },
+  workerChipName: { fontSize: 11, fontFamily: 'Inter_500Medium', maxWidth: 72 },
+  workerChipMore: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
+  workerChipMoreText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  noWorkerText: { fontSize: 11, fontFamily: 'Inter_400Regular', fontStyle: 'italic' },
+  manageWorkersBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1, marginLeft: 'auto' },
+  manageWorkersBtnText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  modalSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  workerSectionTitle: { fontSize: 10, fontFamily: 'Inter_700Bold', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 10 },
+  workerEmptyBox: { borderRadius: 14, borderWidth: 1, padding: 24, alignItems: 'center', gap: 8 },
+  workerEmptyText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+  workerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1, padding: 12 },
+  workerAvatarLg: { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  workerAvatarLgText: { fontSize: 16, fontFamily: 'Inter_700Bold' },
+  workerRowName: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  workerRowId: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  workerStatusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
+  workerStatusText: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
+  workerRemoveBtn: { width: 32, height: 32, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  workerAddBtn: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  workerSearchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
+  workerSearchInput: { flex: 1, fontSize: 13, fontFamily: 'Inter_400Regular' },
 });
