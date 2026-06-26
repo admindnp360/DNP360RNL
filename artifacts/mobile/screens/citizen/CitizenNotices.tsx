@@ -109,7 +109,7 @@ export default function CitizenNotices() {
                   </LinearGradient>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.noticeTitle, { color: colors.text }]} numberOfLines={isExpanded ? undefined : 1}>{n.title}</Text>
-                    <Text style={[styles.noticeMeta, { color: colors.mutedForeground }]}>{n.date} · {n.author}</Text>
+                    <Text style={[styles.noticeMeta, { color: colors.mutedForeground }]}>{n.createdAt}</Text>
                   </View>
                   <View style={[styles.typePill, { backgroundColor: tc.bg }]}>
                     <Text style={[styles.typePillText, { color: tc.color }]}>{tc.label}</Text>
@@ -119,13 +119,13 @@ export default function CitizenNotices() {
                 {/* Priority bar */}
                 {n.priority && (
                   <View style={[styles.priorityBar, {
-                    backgroundColor: n.priority === 'critical' ? '#FEF2F2' : n.priority === 'high' ? '#FFFBEB' : '#F0FDF4',
-                    borderColor: n.priority === 'critical' ? '#EF4444' : n.priority === 'high' ? '#F59E0B' : '#10B981',
+                    backgroundColor: n.priority === 'high' ? '#FEF2F2' : n.priority === 'medium' ? '#FFFBEB' : '#F0FDF4',
+                    borderColor: n.priority === 'high' ? '#EF4444' : n.priority === 'medium' ? '#F59E0B' : '#10B981',
                   }]}>
-                    <Feather name={n.priority === 'critical' ? 'alert-circle' : n.priority === 'high' ? 'alert-triangle' : 'info'} size={11}
-                      color={n.priority === 'critical' ? '#DC2626' : n.priority === 'high' ? '#D97706' : '#059669'} />
+                    <Feather name={n.priority === 'high' ? 'alert-circle' : n.priority === 'medium' ? 'alert-triangle' : 'info'} size={11}
+                      color={n.priority === 'high' ? '#DC2626' : n.priority === 'medium' ? '#D97706' : '#059669'} />
                     <Text style={[styles.priorityText, {
-                      color: n.priority === 'critical' ? '#DC2626' : n.priority === 'high' ? '#D97706' : '#059669',
+                      color: n.priority === 'high' ? '#DC2626' : n.priority === 'medium' ? '#D97706' : '#059669',
                     }]}>{n.priority.charAt(0).toUpperCase() + n.priority.slice(1)} Priority</Text>
                   </View>
                 )}

@@ -47,6 +47,7 @@ export default function AdminProfile() {
   const activeKeys = secretKeys.filter(k => k.isActive).length;
 
   function openEdit() {
+    if (!user) return;
     setEditName(user.name); setEditMobile(user.mobile ?? ''); setEditAddress(user.address ?? '');
     setShowEditModal(true);
   }

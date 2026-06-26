@@ -14,7 +14,7 @@ const TABS: { key: InnerTab; label: string; icon: string; grad: readonly [string
   { key: 'groups', label: 'Groups', icon: 'layers', grad: ['#10B981', '#059669'] },
 ];
 
-export default function SuperAdminHouseMain() {
+export default function SuperAdminHouseMain({ embedded = false }: { embedded?: boolean }) {
   const [tab, setTab] = useState<InnerTab>('housedb');
   const colors = useColors();
   const activeTab = TABS.find(t => t.key === tab)!;

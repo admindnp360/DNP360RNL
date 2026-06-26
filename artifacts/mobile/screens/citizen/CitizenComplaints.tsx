@@ -61,7 +61,7 @@ export default function CitizenComplaints() {
     if (!description.trim() || !location.trim()) { showAlert('Missing fields', 'Please fill description and location.', undefined, 'warning'); return; }
     setSubmitting(true);
     try {
-      await addComplaint({ citizenId: user?.id ?? '', citizenName: user?.name ?? '', category: category as any, description: description.trim(), location: location.trim(), status: 'submitted', wardId: user?.wardId ?? '', images: [] });
+      await addComplaint({ citizenId: user?.id ?? '', citizenName: user?.name ?? '', category: category as any, description: description.trim(), location: location.trim(), status: 'submitted', wardId: user?.wardId ?? '' });
       setShowModal(false); setDescription(''); setLocation(''); setCategory('garbage_collection');
       showAlert('Submitted', 'Your complaint has been submitted successfully.', undefined, 'success');
     } finally { setSubmitting(false); }
@@ -130,7 +130,7 @@ export default function CitizenComplaints() {
                     <Text style={[styles.cardCat, { color: colors.text }]} numberOfLines={1}>
                       {c.category?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                     </Text>
-                    <Text style={[styles.cardDate, { color: colors.mutedForeground }]}>{c.date} · {c.id}</Text>
+                    <Text style={[styles.cardDate, { color: colors.mutedForeground }]}>{c.createdAt} · {c.id}</Text>
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
                     <Feather name={cfg.icon as any} size={10} color={cfg.color} />

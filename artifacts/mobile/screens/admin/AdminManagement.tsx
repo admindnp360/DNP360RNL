@@ -6,19 +6,19 @@ import {
   Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { SearchBar } from '@/components/SearchBar';
 import { useAlert } from '@/contexts/AlertContext';
 import { useAppData } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useColors } from '@/hooks/useColors';
-import type { PasswordResetRequest, Ward } from '@/types';
+import type { PasswordResetRequest } from '@/types';
+import SuperAdminHouseMain from './SuperAdminHouseMain';
 
-type Tab = 'wards' | 'notices' | 'resets';
+type Tab = 'housedb' | 'notices' | 'resets';
 
 const TAB_CONFIG = [
-  { key: 'wards',   label: 'Wards',   icon: 'map',      grad: ['#4F46E5', '#7C3AED'] as const },
-  { key: 'notices', label: 'Notices', icon: 'volume-2', grad: ['#0EA5E9', '#0284C7'] as const },
-  { key: 'resets',  label: 'Resets',  icon: 'unlock',   grad: ['#F97316', '#EF4444'] as const },
+  { key: 'housedb',  label: 'House DB', icon: 'database', grad: ['#4F46E5', '#7C3AED'] as const },
+  { key: 'notices',  label: 'Notices',  icon: 'volume-2', grad: ['#0EA5E9', '#0284C7'] as const },
+  { key: 'resets',   label: 'Resets',   icon: 'unlock',   grad: ['#F97316', '#EF4444'] as const },
 ] as const;
 
 const PRIORITY_CONFIG = {
@@ -27,29 +27,16 @@ const PRIORITY_CONFIG = {
   low:    { grad: ['#F0FDF4', '#DCFCE7'] as const, text: '#16A34A', badge: '#16A34A', badgeBg: '#DCFCE7' },
 };
 
-const WARD_GRADIENTS = [
-  ['#4F46E5', '#7C3AED'],
-  ['#0EA5E9', '#0284C7'],
-  ['#10B981', '#059669'],
-  ['#F97316', '#EA580C'],
-  ['#EC4899', '#DB2777'],
-  ['#8B5CF6', '#7C3AED'],
-] as const;
-
 export default function AdminManagement() {
   const {
-    wards, notices, houses, users, passwordResetRequests,
-    addWard, updateWard, addNotice, deleteNotice,
-    assignWorkerToWard, addHouse, updatePasswordResetRequest,
+    notices, passwordResetRequests,
+    addNotice, deleteNotice,
+    updatePasswordResetRequest,
   } = useAppData();
   const { resetUserPassword } = useAuth();
   const colors = useColors();
 
-  const [tab, setTab] = useState<Tab>('wards');
-  const [wardSearch, setWardSearch] = useState('');
-  const [selectedWard, setSelectedWard] = useState<Ward | null>(null);
-  const [showWardModal, setShowWardModal] = useState(false);
-  const [showAddHouseModal, setShowAddHouseModal] = useState(false);
+  const [tab, setTab] = useState<Tab>('housedb');
   const [showNoticeModal, setShowNoticeModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<PasswordResetRequest | null>(null);
@@ -60,42 +47,9 @@ export default function AdminManagement() {
   const [noticeType, setNoticeType] = useState<'notice' | 'announcement' | 'alert'>('notice');
   const [noticePriority, setNoticePriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [saving, setSaving] = useState(false);
-  const [houseOwner, setHouseOwner] = useState('');
-  const [houseMobile, setHouseMobile] = useState('');
-  const [houseAddress, setHouseAddress] = useState('');
 
-  const safaiKarmis = users.filter(u => u.role === 'safaikarmi' && u.isActive !== false);
   const pendingResets = passwordResetRequests.filter(r => r.status === 'pending').length;
   const allResets = [...passwordResetRequests].sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
-
-  const filteredWards = wards.filter(w => {
-    if (!wardSearch) return true;
-    const q = wardSearch.toLowerCase();
-    return w.name.toLowerCase().includes(q) || w.area.toLowerCase().includes(q) || w.wardNumber.includes(q);
-  });
-
-  function openWard(w: Ward) { setSelectedWard(w); setShowWardModal(true); }
-
-  const { showAlert } = useAlert();
-
-  async function handleAssignWorker(workerId: string) {
-    if (!selectedWard) return;
-    await assignWorkerToWard(selectedWard.id, workerId);
-    const updated = wards.find(w => w.id === selectedWard.id);
-    if (updated) setSelectedWard({ ...updated, assignedWorkers: [...updated.assignedWorkers.filter(id => id !== workerId), workerId] });
-    showAlert('Assigned', 'Worker assigned to this ward.', undefined, 'success');
-  }
-
-  async function handleAddHouse() {
-    if (!selectedWard) return;
-    if (!houseOwner.trim() || !houseAddress.trim()) { showAlert('Missing', 'Owner name and address are required.', undefined, 'warning'); return; }
-    const regNum = `DNPH${Date.now().toString().slice(-5)}`;
-    await addHouse({ registrationNumber: regNum, ownerName: houseOwner.trim(), mobile: houseMobile.trim(), address: houseAddress.trim(), wardId: selectedWard.id, wardNumber: selectedWard.wardNumber, isActive: true });
-    await updateWard(selectedWard.id, { totalHouses: selectedWard.totalHouses + 1 });
-    setHouseOwner(''); setHouseMobile(''); setHouseAddress('');
-    setShowAddHouseModal(false);
-    showAlert('House Added', `Registration: ${regNum}`, undefined, 'success');
-  }
 
   async function handleAddNotice() {
     if (!noticeTitle.trim() || !noticeContent.trim()) { showAlert('Missing', 'Title and content required.', undefined, 'warning'); return; }
@@ -129,6 +83,8 @@ export default function AdminManagement() {
     ], 'warning');
   }
 
+  const { showAlert } = useAlert();
+
   const activeTab = TAB_CONFIG.find(t => t.key === tab)!;
 
   return (
@@ -138,7 +94,7 @@ export default function AdminManagement() {
       <LinearGradient colors={activeTab.grad} style={styles.header}>
         <Text style={styles.headerTitle}>Management</Text>
         <Text style={styles.headerSub}>
-          {tab === 'wards' ? `${wards.length} wards · ${houses.length} houses`
+          {tab === 'housedb' ? 'House database & ward management'
             : tab === 'notices' ? `${notices.length} notices published`
             : `${pendingResets} pending request${pendingResets !== 1 ? 's' : ''}`}
         </Text>
@@ -169,66 +125,11 @@ export default function AdminManagement() {
         })}
       </View>
 
-      {/* ── WARDS TAB ── */}
-      {tab === 'wards' && (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 110 }}>
-          <SearchBar value={wardSearch} onChangeText={setWardSearch} placeholder="Search wards…" />
-
-          {filteredWards.map((w, idx) => {
-            const wardPending = 0;
-            const grad = WARD_GRADIENTS[idx % WARD_GRADIENTS.length];
-            const workerCount = w.assignedWorkers.length;
-            const wardHouses = houses.filter(h => h.wardId === w.id).length;
-            return (
-              <TouchableOpacity
-                key={w.id}
-                style={[styles.wardCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                onPress={() => openWard(w)}
-                activeOpacity={0.85}
-              >
-                <View style={styles.wardCardInner}>
-                  <LinearGradient colors={grad} style={styles.wardNumBadge}>
-                    <Text style={styles.wardNumText}>W{w.wardNumber}</Text>
-                  </LinearGradient>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.wardName, { color: colors.text }]}>{w.name}</Text>
-                    <Text style={[styles.wardArea, { color: colors.mutedForeground }]}>{w.area}</Text>
-                  </View>
-                  <View style={[styles.manageBtn, { backgroundColor: grad[0] + '15', borderColor: grad[0] + '40' }]}>
-                    <Text style={[styles.manageBtnText, { color: grad[0] }]}>Manage</Text>
-                    <Feather name="chevron-right" size={12} color={grad[0]} />
-                  </View>
-                </View>
-
-                <View style={[styles.wardStats, { borderTopColor: colors.border }]}>
-                  <View style={styles.wardStatPill}>
-                    <View style={[styles.statDot, { backgroundColor: '#4F46E5' }]} />
-                    <Feather name="home" size={11} color={colors.mutedForeground} />
-                    <Text style={[styles.wardStatText, { color: colors.mutedForeground }]}>{wardHouses} houses</Text>
-                  </View>
-                  <View style={styles.wardStatPill}>
-                    <View style={[styles.statDot, { backgroundColor: workerCount > 0 ? '#10B981' : '#9CA3AF' }]} />
-                    <Feather name="user-check" size={11} color={workerCount > 0 ? '#10B981' : colors.mutedForeground} />
-                    <Text style={[styles.wardStatText, { color: workerCount > 0 ? '#10B981' : colors.mutedForeground }]}>{workerCount} worker{workerCount !== 1 ? 's' : ''}</Text>
-                  </View>
-                  {w.totalHouses > 0 && (
-                    <View style={styles.wardStatPill}>
-                      <Feather name="database" size={11} color={colors.mutedForeground} />
-                      <Text style={[styles.wardStatText, { color: colors.mutedForeground }]}>{w.totalHouses} registered</Text>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-
-          {filteredWards.length === 0 && (
-            <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Feather name="map" size={32} color={colors.mutedForeground} />
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>No Wards Found</Text>
-            </View>
-          )}
-        </ScrollView>
+      {/* ── HOUSE DB TAB ── */}
+      {tab === 'housedb' && (
+        <View style={{ flex: 1 }}>
+          <SuperAdminHouseMain embedded />
+        </View>
       )}
 
       {/* ── NOTICES TAB ── */}
@@ -359,168 +260,6 @@ export default function AdminManagement() {
         </ScrollView>
       )}
 
-      {/* ── WARD DETAIL MODAL ── */}
-      <Modal visible={showWardModal && !!selectedWard} animationType="slide" presentationStyle="pageSheet">
-        {selectedWard && (
-          <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-            <LinearGradient colors={WARD_GRADIENTS[wards.findIndex(w => w.id === selectedWard.id) % WARD_GRADIENTS.length]} style={styles.modalHdr}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.modalHdrTitle}>{selectedWard.name}</Text>
-                <Text style={styles.modalHdrSub}>{selectedWard.area}</Text>
-              </View>
-              <Pressable style={styles.closeBtn} onPress={() => setShowWardModal(false)}>
-                <Feather name="x" size={20} color="#fff" />
-              </Pressable>
-            </LinearGradient>
-
-            <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
-              <View style={styles.wardStatRow}>
-                {[
-                  { label: 'Registered', value: houses.filter(h => h.wardId === selectedWard.id).length, icon: 'home', grad: ['#4F46E5', '#7C3AED'] as const },
-                  { label: 'Workers', value: selectedWard.assignedWorkers.length, icon: 'user-check', grad: ['#10B981', '#059669'] as const },
-                ].map(s => (
-                  <LinearGradient key={s.label} colors={s.grad} style={styles.wardStatCard}>
-                    <Feather name={s.icon as any} size={20} color="#fff" />
-                    <Text style={styles.wardStatVal}>{s.value}</Text>
-                    <Text style={styles.wardStatLabel}>{s.label}</Text>
-                  </LinearGradient>
-                ))}
-              </View>
-
-              {/* Registration Progress Bar */}
-              {(() => {
-                const registeredCount = houses.filter(h => h.wardId === selectedWard.id).length;
-                const totalCount = selectedWard.totalHouses;
-                const pct = totalCount > 0 ? Math.min(100, Math.round((registeredCount / totalCount) * 100)) : 0;
-                const remaining = Math.max(0, totalCount - registeredCount);
-                const barColor = pct >= 80 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#EF4444';
-                return (
-                  <View style={[styles.progressCard, { backgroundColor: '#0A0A2E10', borderColor: '#4F46E530' }]}>
-                    <View style={styles.progressHeader}>
-                      <View style={styles.progressLabelRow}>
-                        <Feather name="bar-chart-2" size={13} color="#4F46E5" />
-                        <Text style={styles.progressTitle}>Registration Coverage</Text>
-                      </View>
-                      <Text style={[styles.progressPct, { color: barColor }]}>{pct}%</Text>
-                    </View>
-                    <View style={styles.progressTrack}>
-                      <View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
-                    </View>
-                    <View style={styles.progressMeta}>
-                      <Text style={styles.progressSub}>
-                        <Text style={{ color: '#4F46E5', fontFamily: 'Inter_700Bold' }}>{registeredCount}</Text>
-                        {' registered of '}
-                        <Text style={{ color: '#6B7280', fontFamily: 'Inter_600SemiBold' }}>{totalCount}</Text>
-                        {' municipality total'}
-                      </Text>
-                      {remaining > 0 && (
-                        <View style={styles.remainingChip}>
-                          <Text style={styles.remainingText}>{remaining} pending</Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                );
-              })()}
-
-              <Text style={[styles.sectionLabel, { color: colors.text }]}>Assign Safai Karmi</Text>
-              {safaiKarmis.map(sk => {
-                const assigned = selectedWard.assignedWorkers.includes(sk.id);
-                return (
-                  <TouchableOpacity
-                    key={sk.id}
-                    style={[styles.workerRow, { backgroundColor: colors.card, borderColor: assigned ? '#10B981' : colors.border }]}
-                    onPress={() => handleAssignWorker(sk.id)}
-                    activeOpacity={0.8}
-                  >
-                    <LinearGradient colors={assigned ? ['#10B981', '#059669'] : ['#6B7280', '#4B5563']} style={styles.workerAvatar}>
-                      <Text style={styles.workerAvatarLetter}>{sk.name[0]}</Text>
-                    </LinearGradient>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.workerName, { color: colors.text }]}>{sk.name}</Text>
-                      <Text style={[styles.workerId, { color: colors.mutedForeground }]}>{sk.employeeId}</Text>
-                    </View>
-                    {assigned ? (
-                      <View style={styles.assignedChip}>
-                        <Feather name="check" size={12} color="#10B981" />
-                        <Text style={styles.assignedChipText}>Assigned</Text>
-                      </View>
-                    ) : (
-                      <View style={[styles.assignChip, { backgroundColor: '#4F46E510', borderColor: '#4F46E540' }]}>
-                        <Text style={[styles.assignChipText, { color: '#4F46E5' }]}>+ Assign</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-              {safaiKarmis.length === 0 && <Text style={[styles.emptyText2, { color: colors.mutedForeground }]}>No active Safai Karmis available.</Text>}
-
-              <View style={styles.houseHeader}>
-                <Text style={[styles.sectionLabel, { color: colors.text }]}>Houses in Ward</Text>
-                <TouchableOpacity
-                  style={styles.addHouseBtn}
-                  onPress={() => { setShowWardModal(false); setTimeout(() => setShowAddHouseModal(true), 300); }}
-                >
-                  <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.addHouseBtnGrad}>
-                    <Feather name="plus" size={13} color="#fff" />
-                    <Text style={styles.addHouseBtnText}>Add House</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-              {houses.filter(h => h.wardId === selectedWard.id).slice(0, 8).map(h => (
-                <View key={h.id} style={[styles.houseRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={[styles.houseIconWrap, { backgroundColor: '#4F46E515' }]}>
-                    <Feather name="home" size={14} color="#4F46E5" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.houseOwner, { color: colors.text }]}>{h.ownerName}</Text>
-                    <Text style={[styles.houseReg, { color: colors.mutedForeground }]}>{h.registrationNumber}</Text>
-                  </View>
-                </View>
-              ))}
-              {houses.filter(h => h.wardId === selectedWard.id).length === 0 && (
-                <Text style={[styles.emptyText2, { color: colors.mutedForeground }]}>No houses registered yet.</Text>
-              )}
-            </ScrollView>
-          </SafeAreaView>
-        )}
-      </Modal>
-
-      {/* ── ADD HOUSE MODAL ── */}
-      <Modal visible={showAddHouseModal} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-          <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.modalHdr}>
-            <Text style={styles.modalHdrTitle}>Add House</Text>
-            <Pressable style={styles.closeBtn} onPress={() => { setShowAddHouseModal(false); setShowWardModal(true); }}>
-              <Feather name="x" size={20} color="#fff" />
-            </Pressable>
-          </LinearGradient>
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
-            {[
-              { label: 'Owner Name *', value: houseOwner, setter: setHouseOwner, key: 'owner', placeholder: 'Full name', caps: 'words', numeric: false },
-              { label: 'Mobile Number', value: houseMobile, setter: setHouseMobile, key: 'mobile', placeholder: '10-digit mobile', caps: 'none', numeric: true },
-              { label: 'Address *', value: houseAddress, setter: setHouseAddress, key: 'address', placeholder: 'Street, locality…', caps: 'sentences', numeric: false },
-            ].map(f => (
-              <View key={f.key}>
-                <Text style={[styles.fieldLabel, { color: colors.text }]}>{f.label}</Text>
-                <TextInput
-                  style={[styles.fieldInput, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border }]}
-                  placeholder={f.placeholder} placeholderTextColor={colors.mutedForeground}
-                  value={f.value} onChangeText={f.setter}
-                  autoCapitalize={f.caps as any} keyboardType={f.numeric ? 'phone-pad' : 'default'}
-                />
-              </View>
-            ))}
-            <TouchableOpacity onPress={handleAddHouse} activeOpacity={0.85}>
-              <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.submitBtn}>
-                <Feather name="home" size={16} color="#fff" />
-                <Text style={styles.submitBtnText}>Add House</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
-
       {/* ── NOTICE MODAL ── */}
       <Modal visible={showNoticeModal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -630,19 +369,6 @@ const styles = StyleSheet.create({
   tabLabel: { fontSize: 11 },
   tabUnderline: { position: 'absolute', bottom: 0, left: 12, right: 12, height: 2.5, borderTopLeftRadius: 2, borderTopRightRadius: 2 },
 
-  wardCard: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
-  wardCardInner: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  wardNumBadge: { width: 46, height: 46, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
-  wardNumText: { color: '#fff', fontSize: 13, fontFamily: 'Inter_700Bold' },
-  wardName: { fontSize: 14, fontFamily: 'Inter_700Bold' },
-  wardArea: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  manageBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 99, borderWidth: 1 },
-  manageBtnText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  wardStats: { flexDirection: 'row', gap: 14, paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1 },
-  wardStatPill: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  statDot: { width: 6, height: 6, borderRadius: 3 },
-  wardStatText: { fontSize: 11, fontFamily: 'Inter_500Medium' },
-
   publishBtn: { borderRadius: 14, overflow: 'hidden' },
   publishBtnGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 15 },
   publishBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },
@@ -694,34 +420,7 @@ const styles = StyleSheet.create({
 
   modalHdr: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 18 },
   modalHdrTitle: { color: '#fff', fontSize: 20, fontFamily: 'Inter_700Bold' },
-  modalHdrSub: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
   closeBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-
-  wardStatRow: { flexDirection: 'row', gap: 12 },
-  wardStatCard: { flex: 1, borderRadius: 14, padding: 16, alignItems: 'center', gap: 6 },
-  wardStatVal: { color: '#fff', fontSize: 28, fontFamily: 'Inter_700Bold' },
-  wardStatLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: 'Inter_600SemiBold' },
-
-  sectionLabel: { fontSize: 15, fontFamily: 'Inter_700Bold' },
-  workerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1.5, padding: 12 },
-  workerAvatar: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
-  workerAvatarLetter: { color: '#fff', fontSize: 18, fontFamily: 'Inter_700Bold' },
-  workerName: { fontSize: 13, fontFamily: 'Inter_700Bold' },
-  workerId: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  assignedChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99, backgroundColor: '#DCFCE7' },
-  assignedChipText: { fontSize: 11, fontFamily: 'Inter_700Bold', color: '#10B981' },
-  assignChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 99, borderWidth: 1 },
-  assignChipText: { fontSize: 12, fontFamily: 'Inter_700Bold' },
-  emptyText2: { fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center', paddingVertical: 12 },
-
-  houseHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  addHouseBtn: { borderRadius: 10, overflow: 'hidden' },
-  addHouseBtnGrad: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7 },
-  addHouseBtnText: { color: '#fff', fontSize: 12, fontFamily: 'Inter_700Bold' },
-  houseRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, borderWidth: 1, padding: 12 },
-  houseIconWrap: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  houseOwner: { fontSize: 13, fontFamily: 'Inter_700Bold' },
-  houseReg: { fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 1 },
 
   fieldLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', marginBottom: 6 },
   fieldInput: { borderRadius: 12, borderWidth: 1, padding: 13, fontSize: 14, fontFamily: 'Inter_400Regular' },
@@ -733,18 +432,6 @@ const styles = StyleSheet.create({
   submitBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },
   cancelBtn: { borderRadius: 14, paddingVertical: 14, alignItems: 'center', borderWidth: 1 },
   cancelBtnText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
-
-  progressCard: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
-  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  progressLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  progressTitle: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#4F46E5' },
-  progressPct: { fontSize: 20, fontFamily: 'Inter_700Bold' },
-  progressTrack: { height: 10, borderRadius: 5, backgroundColor: '#E5E7EB', overflow: 'hidden' },
-  progressFill: { height: 10, borderRadius: 5 },
-  progressMeta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  progressSub: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#6B7280', flex: 1 },
-  remainingChip: { backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 },
-  remainingText: { fontSize: 10, fontFamily: 'Inter_700Bold', color: '#D97706' },
 
   requestPreview: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1, padding: 14 },
   requestAvatar: { width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center' },

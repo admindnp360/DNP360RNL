@@ -150,7 +150,7 @@ export default function CitizenHome() {
                     </LinearGradient>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.noticeTitle, { color: colors.text }]} numberOfLines={1}>{n.title}</Text>
-                      <Text style={[styles.noticeMeta, { color: colors.mutedForeground }]}>{n.date} · {n.author}</Text>
+                      <Text style={[styles.noticeMeta, { color: colors.mutedForeground }]}>{n.createdAt}</Text>
                     </View>
                     <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
                   </View>
@@ -188,7 +188,7 @@ export default function CitizenHome() {
                       </LinearGradient>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.complaintDesc, { color: colors.text }]} numberOfLines={1}>{c.description}</Text>
-                        <Text style={[styles.complaintMeta, { color: colors.mutedForeground }]}>{c.category?.replace(/_/g, ' ')} · {c.date}</Text>
+                        <Text style={[styles.complaintMeta, { color: colors.mutedForeground }]}>{c.category?.replace(/_/g, ' ')} · {c.createdAt}</Text>
                       </View>
                       <LinearGradient colors={cfg.grad} style={styles.complaintStatusBadge}>
                         <Text style={styles.complaintStatusText}>{cfg.label}</Text>

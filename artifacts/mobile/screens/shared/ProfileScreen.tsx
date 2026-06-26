@@ -112,6 +112,7 @@ export default function ProfileScreen() {
   })();
 
   function openEdit() {
+    if (!user) return;
     setEditName(user.name); setEditMobile(user.mobile ?? ''); setEditAddress(user.address ?? '');
     setShowEditModal(true);
   }
