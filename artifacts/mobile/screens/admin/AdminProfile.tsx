@@ -14,7 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useColors } from '@/hooks/useColors';
 
 export default function AdminProfile() {
-  const { user, logout, updateProfile } = useAuth();
+  const { user, logout, updateProfile, changePassword } = useAuth();
   const { showAlert } = useAlert();
   const {
     users, complaints, notices, wards, houses, secretKeys,
@@ -25,6 +25,14 @@ export default function AdminProfile() {
   const [notifEnabled, setNotifEnabled] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
+  const [showChangePwModal, setShowChangePwModal] = useState(false);
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
+  const [changingPw, setChangingPw] = useState(false);
   const [editName, setEditName] = useState('');
   const [editMobile, setEditMobile] = useState('');
   const [editAddress, setEditAddress] = useState('');
@@ -76,6 +84,29 @@ export default function AdminProfile() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign Out', style: 'destructive', onPress: async () => { await logout(); router.replace('/login'); } },
     ], 'warning');
+  }
+  function openChangePw() {
+    setCurrentPw(''); setNewPw(''); setConfirmPw('');
+    setShowCurrentPw(false); setShowNewPw(false); setShowConfirmPw(false);
+    setShowChangePwModal(true);
+  }
+  async function handleChangePassword() {
+    if (!newPw || !currentPw || !confirmPw) {
+      showAlert('Missing Fields', 'Please fill in all fields.', undefined, 'warning'); return;
+    }
+    if (newPw !== confirmPw) {
+      showAlert('Mismatch', 'New password and confirm password do not match.', undefined, 'warning'); return;
+    }
+    setChangingPw(true);
+    try {
+      const result = await changePassword(currentPw, newPw);
+      if (result.success) {
+        setShowChangePwModal(false);
+        showAlert('Password Changed', 'Your password has been updated successfully.', undefined, 'success');
+      } else {
+        showAlert('Error', result.error ?? 'Failed to change password.', undefined, 'error');
+      }
+    } finally { setChangingPw(false); }
   }
 
   const QUICK_STATS = [
@@ -265,7 +296,7 @@ export default function AdminProfile() {
                 </View>
                 <Switch value={notifEnabled} onValueChange={setNotifEnabled} trackColor={{ false: colors.border, true: '#6366F1AA' }} thumbColor={notifEnabled ? '#6366F1' : colors.mutedForeground} />
               </View>
-              <TouchableOpacity style={styles.infoRow} onPress={openSupport} activeOpacity={0.7}>
+              <TouchableOpacity style={[styles.infoRow, { borderBottomWidth: 1, borderBottomColor: colors.border }]} onPress={openSupport} activeOpacity={0.7}>
                 <LinearGradient colors={['#10B981', '#059669']} style={styles.infoRowIcon}>
                   <Feather name="phone-call" size={13} color="#fff" />
                 </LinearGradient>
@@ -275,6 +306,18 @@ export default function AdminProfile() {
                 </View>
                 <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
               </TouchableOpacity>
+              {!!(user as any)?.isSuperAdmin && (
+                <TouchableOpacity style={styles.infoRow} onPress={openChangePw} activeOpacity={0.7}>
+                  <LinearGradient colors={['#EF4444', '#DC2626']} style={styles.infoRowIcon}>
+                    <Feather name="lock" size={13} color="#fff" />
+                  </LinearGradient>
+                  <View style={styles.infoRowText}>
+                    <Text style={[styles.infoRowValue, { color: colors.text }]}>Change Password</Text>
+                    <Text style={[styles.infoRowLabel, { color: colors.mutedForeground }]}>Update Super Admin credentials</Text>
+                  </View>
+                  <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
@@ -396,6 +439,125 @@ export default function AdminProfile() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+      {/* ── CHANGE PASSWORD MODAL ── */}
+      <Modal visible={showChangePwModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <LinearGradient colors={['#7F1D1D', '#991B1B', '#DC2626']} style={styles.modalHdr}>
+            <Text style={styles.modalHdrTitle}>Change Password</Text>
+            <Pressable style={styles.modalCloseBtn} onPress={() => setShowChangePwModal(false)}>
+              <Feather name="x" size={18} color="#fff" />
+            </Pressable>
+          </LinearGradient>
+
+          <ScrollView contentContainerStyle={{ padding: 20, gap: 20 }} keyboardShouldPersistTaps="handled">
+
+            {/* Lock icon header */}
+            <View style={{ alignItems: 'center', paddingVertical: 8 }}>
+              <LinearGradient colors={['#EF4444', '#DC2626']} style={{ width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center' }}>
+                <Feather name="lock" size={28} color="#fff" />
+              </LinearGradient>
+              <Text style={{ color: colors.text, fontSize: 17, fontFamily: 'Inter_700Bold', marginTop: 12 }}>Update Super Admin Password</Text>
+              <Text style={{ color: colors.mutedForeground, fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center', marginTop: 4, paddingHorizontal: 20 }}>
+                Enter your current password, then choose a new one. Min 6 characters.
+              </Text>
+            </View>
+
+            {/* Current Password */}
+            <View>
+              <Text style={[styles.fieldLabel, { color: colors.text }]}>Current Password</Text>
+              <View style={[styles.fieldWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Feather name="lock" size={16} color="#EF4444" />
+                <TextInput
+                  style={[styles.fieldInput, { color: colors.text }]}
+                  value={currentPw}
+                  onChangeText={setCurrentPw}
+                  secureTextEntry={!showCurrentPw}
+                  placeholder="Enter current password"
+                  placeholderTextColor={colors.mutedForeground}
+                  autoCapitalize="none"
+                />
+                <Pressable onPress={() => setShowCurrentPw(v => !v)} hitSlop={8}>
+                  <Feather name={showCurrentPw ? 'eye-off' : 'eye'} size={16} color={colors.mutedForeground} />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* New Password */}
+            <View>
+              <Text style={[styles.fieldLabel, { color: colors.text }]}>New Password</Text>
+              <View style={[styles.fieldWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Feather name="key" size={16} color="#EF4444" />
+                <TextInput
+                  style={[styles.fieldInput, { color: colors.text }]}
+                  value={newPw}
+                  onChangeText={setNewPw}
+                  secureTextEntry={!showNewPw}
+                  placeholder="Enter new password"
+                  placeholderTextColor={colors.mutedForeground}
+                  autoCapitalize="none"
+                />
+                <Pressable onPress={() => setShowNewPw(v => !v)} hitSlop={8}>
+                  <Feather name={showNewPw ? 'eye-off' : 'eye'} size={16} color={colors.mutedForeground} />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Confirm New Password */}
+            <View>
+              <Text style={[styles.fieldLabel, { color: colors.text }]}>Confirm New Password</Text>
+              <View style={[styles.fieldWrap, { backgroundColor: colors.card, borderColor: colors.border, borderColor: confirmPw && confirmPw !== newPw ? '#EF4444' : colors.border }]}>
+                <Feather name="check-circle" size={16} color={confirmPw && confirmPw === newPw ? '#10B981' : '#EF4444'} />
+                <TextInput
+                  style={[styles.fieldInput, { color: colors.text }]}
+                  value={confirmPw}
+                  onChangeText={setConfirmPw}
+                  secureTextEntry={!showConfirmPw}
+                  placeholder="Re-enter new password"
+                  placeholderTextColor={colors.mutedForeground}
+                  autoCapitalize="none"
+                />
+                <Pressable onPress={() => setShowConfirmPw(v => !v)} hitSlop={8}>
+                  <Feather name={showConfirmPw ? 'eye-off' : 'eye'} size={16} color={colors.mutedForeground} />
+                </Pressable>
+              </View>
+              {confirmPw.length > 0 && confirmPw !== newPw && (
+                <Text style={{ color: '#EF4444', fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 4, marginLeft: 4 }}>
+                  Passwords do not match
+                </Text>
+              )}
+            </View>
+
+            {/* Strength indicator */}
+            {newPw.length > 0 && (
+              <View style={{ gap: 4 }}>
+                <View style={{ flexDirection: 'row', gap: 4 }}>
+                  {[1, 2, 3, 4].map(i => (
+                    <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: newPw.length >= i * 2 ? (newPw.length >= 8 ? '#10B981' : newPw.length >= 6 ? '#F59E0B' : '#EF4444') : colors.border }} />
+                  ))}
+                </View>
+                <Text style={{ color: colors.mutedForeground, fontSize: 11, fontFamily: 'Inter_400Regular' }}>
+                  Strength: {newPw.length < 4 ? 'Weak' : newPw.length < 6 ? 'Fair' : newPw.length < 8 ? 'Good' : 'Strong'}
+                </Text>
+              </View>
+            )}
+
+            {/* Submit */}
+            <TouchableOpacity
+              onPress={handleChangePassword}
+              disabled={changingPw || !currentPw || !newPw || !confirmPw}
+              activeOpacity={0.85}
+              style={[(!currentPw || !newPw || !confirmPw || changingPw) && { opacity: 0.5 }]}
+            >
+              <LinearGradient colors={['#EF4444', '#DC2626']} style={styles.submitBtn}>
+                <Feather name={changingPw ? 'loader' : 'check'} size={16} color="#fff" />
+                <Text style={styles.submitBtnText}>{changingPw ? 'Updating…' : 'Update Password'}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
     </SafeAreaView>
   );
 }

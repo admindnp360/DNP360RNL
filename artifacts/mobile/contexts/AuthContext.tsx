@@ -6,6 +6,7 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  updatePassword as firebaseUpdatePassword,
 } from 'firebase/auth';
 import {
   collection,
@@ -34,6 +35,7 @@ interface AuthContextType {
   updateProfile: (updates: Partial<User>) => Promise<void>;
   resetUserPassword: (email: string, newPassword: string) => Promise<boolean>;
   updateSecretKey: (userId: string, newCode: string) => Promise<boolean>;
+  changePassword: (currentPwd: string, newPwd: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const SUPER_ADMIN: User & { password: string; secretCode: string; mobile: string } = {
@@ -139,9 +141,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function login(identifier: string, password: string, method: 'email' | 'mobile' = 'email'): Promise<boolean> {
     const trimmed = identifier.trim();
 
+    const storedPwd = await AsyncStorage.getItem('dnp360_superadmin_pwd').catch(() => null);
+    const activePwd = storedPwd ?? SUPER_ADMIN.password;
+
     const isSuperAdminLogin =
-      (method === 'email'  && trimmed.toLowerCase() === SUPER_ADMIN.email.toLowerCase() && password === SUPER_ADMIN.password) ||
-      (method === 'mobile' && trimmed === SUPER_ADMIN.mobile && password === SUPER_ADMIN.password);
+      (method === 'email'  && trimmed.toLowerCase() === SUPER_ADMIN.email.toLowerCase() && password === activePwd) ||
+      (method === 'mobile' && trimmed === SUPER_ADMIN.mobile && password === activePwd);
 
     if (isSuperAdminLogin) {
       const { password: _, secretCode: __, ...userData } = SUPER_ADMIN;
@@ -395,6 +400,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true;
   }
 
+  async function changePassword(currentPwd: string, newPwd: string): Promise<{ success: boolean; error?: string }> {
+    if (!user?.isSuperAdmin) return { success: false, error: 'Not authorized.' };
+    if (!currentPwd || !newPwd) return { success: false, error: 'All fields are required.' };
+    if (newPwd.length < 6) return { success: false, error: 'New password must be at least 6 characters.' };
+
+    // Verify current password against stored override or default
+    const storedPwd = await AsyncStorage.getItem('dnp360_superadmin_pwd').catch(() => null);
+    const activePwd = storedPwd ?? SUPER_ADMIN.password;
+    if (currentPwd !== activePwd) return { success: false, error: 'Current password is incorrect.' };
+    if (newPwd === currentPwd) return { success: false, error: 'New password must be different.' };
+
+    // Persist new password locally so login uses it from now on
+    await AsyncStorage.setItem('dnp360_superadmin_pwd', newPwd).catch(() => {});
+
+    // Also update Firebase Auth password if user has a live Firebase session
+    try {
+      const fbUser = firebaseAuth.currentUser;
+      if (fbUser) await firebaseUpdatePassword(fbUser, newPwd);
+    } catch { /* Firebase Auth update is best-effort */ }
+
+    return { success: true };
+  }
+
   async function updateSecretKey(userId: string, newCode: string): Promise<boolean> {
     if (!user?.isSuperAdmin) return false;
     try {
@@ -414,7 +442,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, loginWithCode, loginWithGoogle, register, logout, updateProfile, resetUserPassword, updateSecretKey }}>
+    <AuthContext.Provider value={{ user, isLoading, login, loginWithCode, loginWithGoogle, register, logout, updateProfile, resetUserPassword, updateSecretKey, changePassword }}>
       {children}
     </AuthContext.Provider>
   );
