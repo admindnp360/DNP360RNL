@@ -105,9 +105,18 @@ export interface HouseCollectionRow {
   totalLate: number;
   totalDays: number;
   percentage: string;
+  weeklyCollected?: Record<string, number>;
+  weeklyTotal?: Record<string, number>;
+  monthlyData?: Record<number, { p: number; n: number; l: number }>;
 }
 
 export type ReportType = 'monthly' | 'quarterly' | 'yearly';
+
+export interface WeekHeader {
+  key: string;
+  label: string;
+  totalDays: number;
+}
 
 export interface GeneratedReport {
   id: string;
@@ -122,6 +131,7 @@ export interface GeneratedReport {
   rows: HouseCollectionRow[];
   daysInPeriod: number;
   dayHeaders: number[];
+  weekHeaders?: WeekHeader[];
 }
 
 export interface Ward {

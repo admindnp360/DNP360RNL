@@ -11,7 +11,7 @@ import {
 import { useAlert } from '@/contexts/AlertContext';
 import { useAppData } from '@/contexts/AppContext';
 import type {
-  CollectionStatus, GeneratedReport, HouseCollectionRow, ReportType,
+  CollectionStatus, GeneratedReport, HouseCollectionRow, ReportType, WeekHeader,
 } from '@/types';
 
 // ── Design tokens ─────────────────────────────────────────────────────
@@ -160,7 +160,7 @@ export default function AdminReports() {
     };
   }
 
-  // ── Generate quarterly report ──────────────────────────────────────
+  // ── Generate quarterly report (WEEK-WISE) ─────────────────────────
   function buildQuarterlyReport(year: number, quarter: number, wardId: string | null): GeneratedReport {
     const startMonth = (quarter - 1) * 3 + 1;
     const endMonth   = startMonth + 2;
@@ -168,64 +168,81 @@ export default function AdminReports() {
     const endDays    = daysInMonth(endMonth, year);
     const endDate    = `${year}-${padDate(endMonth)}-${padDate(endDays)}`;
 
-    // Build a unique "virtual" day list: day 1-90ish; we'll label as month-day
-    // For display simplicity: show per-month summary rows
     const houseList = wardId ? houses.filter(h => h.wardId === wardId) : houses;
     const ward = wardId ? wards.find(w => w.id === wardId) : null;
 
-    // Day headers: all days across the 3 months
-    const dayHeaders: number[] = [];
+    // Build week headers across all 3 months (W1=days1-7, W2=8-14, W3=15-21, W4=22-28, W5=29+)
+    const weekHeaders: WeekHeader[] = [];
     for (let m = startMonth; m <= endMonth; m++) {
-      const d = daysInMonth(m, year);
-      for (let day = 1; day <= d; day++) dayHeaders.push(day + (m - startMonth) * 100);
+      const dInM = daysInMonth(m, year);
+      const numWeeks = Math.ceil(dInM / 7);
+      for (let w = 1; w <= numWeeks; w++) {
+        const wStart = (w - 1) * 7 + 1;
+        const wEnd   = Math.min(w * 7, dInM);
+        weekHeaders.push({
+          key:       `${m}-W${w}`,
+          label:     `${MONTH_NAMES[m - 1].slice(0, 3)}-W${w}`,
+          totalDays: wEnd - wStart + 1,
+        });
+      }
     }
 
-    // Simplified: use total collection per house across the quarter
     const rows: HouseCollectionRow[] = houseList.map((house, idx) => {
       const visits = houseVisits.filter(v =>
         v.houseId === house.id &&
         v.visitDate >= startDate &&
         v.visitDate <= endDate
       );
-
-      // Build per-month summaries
       let totalPresent = 0, totalAbsent = 0, totalLate = 0, totalDays = 0;
-      const dailyStatus: Record<number, CollectionStatus> = {};
+      const weeklyCollected: Record<string, number> = {};
+      const weeklyTotal:     Record<string, number> = {};
 
       for (let m = startMonth; m <= endMonth; m++) {
-        const dInM = daysInMonth(m, year);
-        totalDays += dInM;
-        for (let day = 1; day <= dInM; day++) {
-          const dateStr = `${year}-${padDate(m)}-${padDate(day)}`;
-          const visit = visits.find(v => v.visitDate === dateStr);
-          let status: CollectionStatus = 'N';
-          if (visit && visit.collectedGarbage) status = visit.isLate ? 'L' : 'P';
-          const key = day + (m - startMonth) * 100;
-          dailyStatus[key] = status;
-          if (status === 'P') totalPresent++;
-          else if (status === 'L') { totalLate++; totalPresent++; }
-          else totalAbsent++;
+        const dInM     = daysInMonth(m, year);
+        const numWeeks = Math.ceil(dInM / 7);
+        for (let w = 1; w <= numWeeks; w++) {
+          const wStart = (w - 1) * 7 + 1;
+          const wEnd   = Math.min(w * 7, dInM);
+          const key    = `${m}-W${w}`;
+          let wCollected = 0;
+          for (let day = wStart; day <= wEnd; day++) {
+            totalDays++;
+            const dateStr = `${year}-${padDate(m)}-${padDate(day)}`;
+            const visit = visits.find(v => v.visitDate === dateStr);
+            if (visit && visit.collectedGarbage) {
+              wCollected++;
+              if (visit.isLate) { totalLate++; totalPresent++; }
+              else totalPresent++;
+            } else totalAbsent++;
+          }
+          weeklyCollected[key] = wCollected;
+          weeklyTotal[key]     = wEnd - wStart + 1;
         }
       }
 
-      const pct = totalDays > 0 ? (((totalPresent) / totalDays) * 100).toFixed(2) + '%' : '0%';
+      const pct = totalDays > 0 ? ((totalPresent / totalDays) * 100).toFixed(2) + '%' : '0%';
       return {
         sNo: idx + 1, houseId: house.id,
         houseRegNo: house.registrationNumber, wardNo: house.wardNumber,
-        dailyStatus, totalPresent, totalAbsent, totalLate, totalDays, percentage: pct,
+        dailyStatus: {}, totalPresent, totalAbsent, totalLate, totalDays, percentage: pct,
+        weeklyCollected, weeklyTotal,
       };
     });
 
     return {
       id: `RPT-Q${quarter}-${year}${wardId ? `-W${ward?.wardNumber}` : ''}`,
-      type: 'quarterly', label: `${QUARTER_LABELS[quarter - 1]} ${year}${ward ? ` · Ward ${ward.wardNumber}` : ''}`,
+      type: 'quarterly',
+      label: `${QUARTER_LABELS[quarter - 1]} ${year}${ward ? ` · Ward ${ward.wardNumber}` : ''}`,
       year, quarter, wardId, wardNumber: ward?.wardNumber ?? null,
       generatedAt: new Date().toISOString(),
-      rows, daysInPeriod: dayHeaders.length, dayHeaders,
+      rows,
+      daysInPeriod: weekHeaders.reduce((a, wh) => a + wh.totalDays, 0),
+      dayHeaders: [],
+      weekHeaders,
     };
   }
 
-  // ── Generate yearly report ─────────────────────────────────────────
+  // ── Generate yearly report (MONTHLY COLUMNS) ──────────────────────
   function buildYearlyReport(year: number, wardId: string | null): GeneratedReport {
     const houseList = wardId ? houses.filter(h => h.wardId === wardId) : houses;
     const ward = wardId ? wards.find(w => w.id === wardId) : null;
@@ -242,29 +259,36 @@ export default function AdminReports() {
         v.visitDate <= endDate
       );
       let totalPresent = 0, totalAbsent = 0, totalLate = 0;
+      const monthlyData: Record<number, { p: number; n: number; l: number }> = {};
+
       for (let m = 1; m <= 12; m++) {
         const dInM = daysInMonth(m, year);
+        let mp = 0, mn = 0, ml = 0;
         for (let day = 1; day <= dInM; day++) {
           const dateStr = `${year}-${padDate(m)}-${padDate(day)}`;
           const visit = visits.find(v => v.visitDate === dateStr);
           if (visit && visit.collectedGarbage) {
-            if (visit.isLate) { totalLate++; totalPresent++; }
-            else totalPresent++;
-          } else totalAbsent++;
+            if (visit.isLate) { ml++; totalLate++; totalPresent++; mp++; }
+            else { mp++; totalPresent++; }
+          } else { mn++; totalAbsent++; }
         }
+        monthlyData[m] = { p: mp, n: mn, l: ml };
       }
-      const pct = totalDaysInYear > 0 ? (((totalPresent) / totalDaysInYear) * 100).toFixed(2) + '%' : '0%';
+
+      const pct = totalDaysInYear > 0 ? ((totalPresent / totalDaysInYear) * 100).toFixed(2) + '%' : '0%';
       return {
         sNo: idx + 1, houseId: house.id,
         houseRegNo: house.registrationNumber, wardNo: house.wardNumber,
         dailyStatus: {}, totalPresent, totalAbsent, totalLate,
         totalDays: totalDaysInYear, percentage: pct,
+        monthlyData,
       };
     });
 
     return {
       id: `RPT-Y${year}${wardId ? `-W${ward?.wardNumber}` : ''}`,
-      type: 'yearly', label: `Year ${year}${ward ? ` · Ward ${ward.wardNumber}` : ''}`,
+      type: 'yearly',
+      label: `Year ${year}${ward ? ` · Ward ${ward.wardNumber}` : ''}`,
       year, wardId, wardNumber: ward?.wardNumber ?? null,
       generatedAt: new Date().toISOString(),
       rows, daysInPeriod: totalDaysInYear, dayHeaders: [],
@@ -294,23 +318,29 @@ export default function AdminReports() {
       const wb = XLSX.utils.book_new();
       const aoaData: (string | number)[][] = [];
 
-      if (report.type === 'monthly' || report.type === 'quarterly') {
-        const dayHdrLabels = report.type === 'monthly'
-          ? report.dayHeaders.map(String)
-          : report.dayHeaders.map(d => {
-              const m = Math.floor(d / 100) + 1;
-              const day = d % 100;
-              return `${MONTH_NAMES[m - 1].slice(0, 3)}-${padDate(day)}`;
-            });
-        aoaData.push(['S.No', 'House Reg No', 'Ward No', ...dayHdrLabels, 'P', 'N', 'L', '%']);
+      if (report.type === 'monthly') {
+        aoaData.push(['S.No', 'House Reg No', 'Ward No', ...report.dayHeaders.map(String), 'P', 'N', 'L', '%']);
         for (const row of report.rows) {
           const dayCells = report.dayHeaders.map(d => row.dailyStatus[d] ?? 'N');
           aoaData.push([row.sNo, row.houseRegNo, row.wardNo, ...dayCells, row.totalPresent, row.totalAbsent, row.totalLate, row.percentage]);
         }
-      } else {
-        aoaData.push(['S.No', 'House Reg No', 'Ward No', 'Total Present', 'Total Absent', 'Total Late', 'Percentage']);
+      } else if (report.type === 'quarterly') {
+        const wh = report.weekHeaders ?? [];
+        aoaData.push(['S.No', 'House Reg No', 'Ward No', ...wh.map(h => h.label), 'P', 'N', 'L', '%']);
         for (const row of report.rows) {
-          aoaData.push([row.sNo, row.houseRegNo, row.wardNo, row.totalPresent, row.totalAbsent, row.totalLate, row.percentage]);
+          const wkCells = wh.map(h => {
+            const col = row.weeklyCollected?.[h.key] ?? 0;
+            const tot = row.weeklyTotal?.[h.key] ?? h.totalDays;
+            return `${col}/${tot}`;
+          });
+          aoaData.push([row.sNo, row.houseRegNo, row.wardNo, ...wkCells, row.totalPresent, row.totalAbsent, row.totalLate, row.percentage]);
+        }
+      } else {
+        // Yearly: monthly columns
+        aoaData.push(['S.No', 'House Reg No', 'Ward No', ...MONTH_NAMES.map(m => m.slice(0, 3)), 'P', 'N', 'L', '%']);
+        for (const row of report.rows) {
+          const mCells = Array.from({ length: 12 }, (_, i) => row.monthlyData?.[i + 1]?.p ?? 0);
+          aoaData.push([row.sNo, row.houseRegNo, row.wardNo, ...mCells, row.totalPresent, row.totalAbsent, row.totalLate, row.percentage]);
         }
       }
 
@@ -544,27 +574,21 @@ export default function AdminReports() {
           )}
 
           {/* Table */}
-          {report.type !== 'yearly' ? (
+          {report.type === 'monthly' && (
             <ScrollView horizontal showsHorizontalScrollIndicator style={s.tableWrap}>
               <View>
-                {/* Table header */}
                 <View style={s.tableHdrRow}>
                   <Text style={[s.thCell, { width: 36 }]}>#</Text>
                   <Text style={[s.thCell, { width: 110 }]}>Reg No</Text>
                   <Text style={[s.thCell, { width: 50 }]}>Ward</Text>
-                  {report.dayHeaders.map(d => {
-                    const label = report.type === 'quarterly'
-                      ? (() => { const m = Math.floor(d / 100) + 1; const day = d % 100; return `${MONTH_NAMES[m-1].slice(0,1)}${padDate(day)}`; })()
-                      : String(d);
-                    return <Text key={d} style={[s.thCell, s.dayCell]}>{label}</Text>;
-                  })}
+                  {report.dayHeaders.map(d => (
+                    <Text key={d} style={[s.thCell, s.dayCell]}>{String(d)}</Text>
+                  ))}
                   <Text style={[s.thCell, { width: 30 }]}>P</Text>
                   <Text style={[s.thCell, { width: 30 }]}>N</Text>
                   <Text style={[s.thCell, { width: 30 }]}>L</Text>
                   <Text style={[s.thCell, { width: 55 }]}>%</Text>
                 </View>
-
-                {/* Table rows */}
                 {report.rows.map((row, ri) => (
                   <View key={row.houseId} style={[s.tableRow, ri % 2 === 0 ? s.tableRowEven : s.tableRowOdd]}>
                     <Text style={[s.tdCell, { width: 36, color: MUTED }]}>{row.sNo}</Text>
@@ -574,9 +598,7 @@ export default function AdminReports() {
                       const status = row.dailyStatus[d] ?? 'N';
                       return (
                         <View key={d} style={[s.dayCell, { alignItems: 'center', justifyContent: 'center' }]}>
-                          <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold', color: getStatusColor(status) }}>
-                            {status}
-                          </Text>
+                          <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold', color: getStatusColor(status) }}>{status}</Text>
                         </View>
                       );
                     })}
@@ -588,30 +610,91 @@ export default function AdminReports() {
                 ))}
               </View>
             </ScrollView>
-          ) : (
-            /* Yearly summary table */
-            <View style={s.tableWrap}>
-              <View style={s.tableHdrRow}>
-                <Text style={[s.thCell, { width: 36 }]}>#</Text>
-                <Text style={[s.thCell, { flex: 1, minWidth: 110 }]}>House Reg No</Text>
-                <Text style={[s.thCell, { width: 50 }]}>Ward</Text>
-                <Text style={[s.thCell, { width: 55 }]}>P Days</Text>
-                <Text style={[s.thCell, { width: 55 }]}>N Days</Text>
-                <Text style={[s.thCell, { width: 45 }]}>Late</Text>
-                <Text style={[s.thCell, { width: 60 }]}>%</Text>
-              </View>
-              {report.rows.map((row, ri) => (
-                <View key={row.houseId} style={[s.tableRow, ri % 2 === 0 ? s.tableRowEven : s.tableRowOdd]}>
-                  <Text style={[s.tdCell, { width: 36, color: MUTED }]}>{row.sNo}</Text>
-                  <Text style={[s.tdCell, { flex: 1, minWidth: 110, color: '#818CF8' }]} numberOfLines={1}>{row.houseRegNo}</Text>
-                  <Text style={[s.tdCell, { width: 50, color: TEXT }]}>{row.wardNo}</Text>
-                  <Text style={[s.tdCell, { width: 55, color: '#34D399' }]}>{row.totalPresent}</Text>
-                  <Text style={[s.tdCell, { width: 55, color: '#FB7185' }]}>{row.totalAbsent}</Text>
-                  <Text style={[s.tdCell, { width: 45, color: '#FBBF24' }]}>{row.totalLate}</Text>
-                  <Text style={[s.tdCell, { width: 60, color: '#818CF8' }]}>{row.percentage}</Text>
+          )}
+
+          {/* Quarterly — week-wise columns */}
+          {report.type === 'quarterly' && (
+            <ScrollView horizontal showsHorizontalScrollIndicator style={s.tableWrap}>
+              <View>
+                <View style={s.tableHdrRow}>
+                  <Text style={[s.thCell, { width: 36 }]}>#</Text>
+                  <Text style={[s.thCell, { width: 110 }]}>Reg No</Text>
+                  <Text style={[s.thCell, { width: 50 }]}>Ward</Text>
+                  {(report.weekHeaders ?? []).map(wh => (
+                    <Text key={wh.key} style={[s.thCell, s.weekCell]}>{wh.label}</Text>
+                  ))}
+                  <Text style={[s.thCell, { width: 30 }]}>P</Text>
+                  <Text style={[s.thCell, { width: 30 }]}>N</Text>
+                  <Text style={[s.thCell, { width: 30 }]}>L</Text>
+                  <Text style={[s.thCell, { width: 55 }]}>%</Text>
                 </View>
-              ))}
-            </View>
+                {report.rows.map((row, ri) => (
+                  <View key={row.houseId} style={[s.tableRow, ri % 2 === 0 ? s.tableRowEven : s.tableRowOdd]}>
+                    <Text style={[s.tdCell, { width: 36, color: MUTED }]}>{row.sNo}</Text>
+                    <Text style={[s.tdCell, { width: 110, color: '#818CF8' }]} numberOfLines={1}>{row.houseRegNo}</Text>
+                    <Text style={[s.tdCell, { width: 50, color: TEXT }]}>{row.wardNo}</Text>
+                    {(report.weekHeaders ?? []).map(wh => {
+                      const col = row.weeklyCollected?.[wh.key] ?? 0;
+                      const tot = wh.totalDays;
+                      const ratio = tot > 0 ? col / tot : 0;
+                      const clr = ratio >= 0.8 ? '#34D399' : ratio >= 0.5 ? '#FBBF24' : '#FB7185';
+                      return (
+                        <View key={wh.key} style={[s.weekCell, { alignItems: 'center', justifyContent: 'center' }]}>
+                          <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold', color: clr }}>{col}/{tot}</Text>
+                        </View>
+                      );
+                    })}
+                    <Text style={[s.tdCell, { width: 30, color: '#34D399' }]}>{row.totalPresent}</Text>
+                    <Text style={[s.tdCell, { width: 30, color: '#FB7185' }]}>{row.totalAbsent}</Text>
+                    <Text style={[s.tdCell, { width: 30, color: '#FBBF24' }]}>{row.totalLate}</Text>
+                    <Text style={[s.tdCell, { width: 55, color: '#818CF8' }]}>{row.percentage}</Text>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          )}
+
+          {/* Yearly — monthly columns (Jan–Dec) */}
+          {report.type === 'yearly' && (
+            <ScrollView horizontal showsHorizontalScrollIndicator style={s.tableWrap}>
+              <View>
+                <View style={s.tableHdrRow}>
+                  <Text style={[s.thCell, { width: 36 }]}>#</Text>
+                  <Text style={[s.thCell, { width: 110 }]}>Reg No</Text>
+                  <Text style={[s.thCell, { width: 50 }]}>Ward</Text>
+                  {MONTH_NAMES.map(m => (
+                    <Text key={m} style={[s.thCell, s.monthCell]}>{m.slice(0, 3)}</Text>
+                  ))}
+                  <Text style={[s.thCell, { width: 36 }]}>P</Text>
+                  <Text style={[s.thCell, { width: 36 }]}>N</Text>
+                  <Text style={[s.thCell, { width: 36 }]}>L</Text>
+                  <Text style={[s.thCell, { width: 55 }]}>%</Text>
+                </View>
+                {report.rows.map((row, ri) => (
+                  <View key={row.houseId} style={[s.tableRow, ri % 2 === 0 ? s.tableRowEven : s.tableRowOdd]}>
+                    <Text style={[s.tdCell, { width: 36, color: MUTED }]}>{row.sNo}</Text>
+                    <Text style={[s.tdCell, { width: 110, color: '#818CF8' }]} numberOfLines={1}>{row.houseRegNo}</Text>
+                    <Text style={[s.tdCell, { width: 50, color: TEXT }]}>{row.wardNo}</Text>
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const md = row.monthlyData?.[i + 1];
+                      const p = md?.p ?? 0;
+                      const tot = daysInMonth(i + 1, report.year);
+                      const ratio = tot > 0 ? p / tot : 0;
+                      const clr = ratio >= 0.8 ? '#34D399' : ratio >= 0.5 ? '#FBBF24' : '#FB7185';
+                      return (
+                        <View key={i} style={[s.monthCell, { alignItems: 'center', justifyContent: 'center' }]}>
+                          <Text style={{ fontSize: 10, fontFamily: 'Inter_700Bold', color: clr }}>{p}</Text>
+                        </View>
+                      );
+                    })}
+                    <Text style={[s.tdCell, { width: 36, color: '#34D399' }]}>{row.totalPresent}</Text>
+                    <Text style={[s.tdCell, { width: 36, color: '#FB7185' }]}>{row.totalAbsent}</Text>
+                    <Text style={[s.tdCell, { width: 36, color: '#FBBF24' }]}>{row.totalLate}</Text>
+                    <Text style={[s.tdCell, { width: 55, color: '#818CF8' }]}>{row.percentage}</Text>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
           )}
 
           {report.rows.length === 0 && (
