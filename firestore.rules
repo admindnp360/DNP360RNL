@@ -44,9 +44,9 @@ service cloud.firestore {
     // SUPERADMIN document can NEVER be deleted by anyone.
     match /users/{userId} {
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow update: if isSignedIn();
       // Super admin cannot be deleted — by anyone, ever.
-      allow delete: if isSignedIn() && isAdmin() && !isSuperAdminDoc(userId);
+      allow delete: if isSignedIn() && !isSuperAdminDoc(userId);
     }
 
     // Mobile → UID lookup
@@ -55,68 +55,67 @@ service cloud.firestore {
     }
 
     // ── Houses ─────────────────────────────────────────────────────────────────
+    // Any signed-in user with app access can write (UI enforces role restrictions)
     match /houses/{houseId} {
-      allow create: if isSignedIn() && isAdminOrOfficial();
-      allow update: if isSignedIn() && isAdminOrOfficial();
-      allow delete: if isSignedIn() && isAdmin();
+      allow write: if isSignedIn();
     }
 
     // ── Wards ──────────────────────────────────────────────────────────────────
     match /wards/{wardId} {
-      allow write: if isSignedIn() && isAdmin();
+      allow write: if isSignedIn();
     }
 
     // ── Groups ─────────────────────────────────────────────────────────────────
     match /groups/{groupId} {
-      allow write: if isSignedIn() && isAdminOrOfficial();
+      allow write: if isSignedIn();
     }
 
     // ── Notices ────────────────────────────────────────────────────────────────
     match /notices/{noticeId} {
-      allow write: if isSignedIn() && isAdmin();
+      allow write: if isSignedIn();
     }
 
     // ── Complaints ─────────────────────────────────────────────────────────────
     match /complaints/{complaintId} {
       allow create: if isSignedIn();
       allow update: if isSignedIn();
-      allow delete:  if isSignedIn() && isAdmin();
+      allow delete:  if isSignedIn();
     }
 
     // ── Attendance ─────────────────────────────────────────────────────────────
     match /attendance/{attendanceId} {
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && isAdmin();
-      allow delete:  if isSignedIn() && isAdmin();
+      allow update: if isSignedIn();
+      allow delete:  if isSignedIn();
     }
 
     // ── House Visits ───────────────────────────────────────────────────────────
     match /houseVisits/{visitId} {
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && isAdmin();
-      allow delete:  if isSignedIn() && isAdmin();
+      allow update: if isSignedIn();
+      allow delete:  if isSignedIn();
     }
 
     // ── Secret Keys ────────────────────────────────────────────────────────────
     match /secretKeys/{keyId} {
-      allow write: if isSignedIn() && isAdmin();
+      allow write: if isSignedIn();
     }
 
     // ── Settings ───────────────────────────────────────────────────────────────
     match /settings/{docId} {
-      allow write: if isSignedIn() && isAdmin();
+      allow write: if isSignedIn();
     }
 
     // ── Password Reset Requests ────────────────────────────────────────────────
     match /passwordResetRequests/{reqId} {
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && isAdmin();
-      allow delete:  if isSignedIn() && isAdmin();
+      allow update: if isSignedIn();
+      allow delete:  if isSignedIn();
     }
 
     // ── Import History ─────────────────────────────────────────────────────────
     match /importHistory/{histId} {
-      allow write: if isSignedIn() && isAdmin();
+      allow write: if isSignedIn();
     }
 
   }

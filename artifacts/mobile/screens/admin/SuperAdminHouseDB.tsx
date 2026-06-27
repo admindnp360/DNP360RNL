@@ -56,6 +56,7 @@ export default function SuperAdminHouseDB() {
   const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
   const [expandedHouseId, setExpandedHouseId] = useState<string | null>(null);
   const [search, setSearch]               = useState('');
+  const [globalSearch, setGlobalSearch]   = useState('');
 
   // ── Groups segment state ───────────────────────────────────────────
   const [grpWard, setGrpWard]             = useState<Ward | null>(null);
@@ -120,8 +121,21 @@ export default function SuperAdminHouseDB() {
   const activeHouses   = houses.filter(h => h.isActive).length;
   const ungroupedHouses = houses.filter(h => !h.groupId).length;
 
+  // ── Global search across all wards ────────────────────────────────
+  const globalResults = (() => {
+    const q = globalSearch.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return houses.filter(h =>
+      h.registrationNumber.toLowerCase().includes(q) ||
+      h.ownerName.toLowerCase().includes(q) ||
+      (h.fatherOrHusband || '').toLowerCase().includes(q) ||
+      h.address.toLowerCase().includes(q) ||
+      (h.mobile || '').includes(q)
+    );
+  })();
+
   // ── DB Tab – navigation helpers ───────────────────────────────────
-  function goToGroups(ward: Ward) { setSelectedWard(ward); setView('groups'); setSearch(''); }
+  function goToGroups(ward: Ward) { setSelectedWard(ward); setView('groups'); setSearch(''); setGlobalSearch(''); }
   function goToHouses(group: Group | null) { setSelectedGroup(group); setView('houses'); setSearch(''); setExpandedHouseId(null); }
   function goBack() {
     if (view === 'houses') { setView('groups'); setExpandedHouseId(null); setSearch(''); exitSelectionMode(); }
@@ -552,22 +566,83 @@ export default function SuperAdminHouseDB() {
           {/* ── WARDS VIEW ──────────────────────────────────────────── */}
           {view === 'wards' && (
             <ScrollView contentContainerStyle={{ padding: 14, gap: 10, paddingBottom: 180 }}>
-              {/* Action row */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <Text style={s.sectionLabel}>All Wards</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity style={[s.actionChip, { borderColor: '#10B98145', backgroundColor: '#10B98112' }]} onPress={() => setShowAddGroupModal(true)} activeOpacity={0.8}>
-                    <Feather name="layers" size={12} color="#10B981" />
-                    <Text style={[s.actionChipText, { color: '#10B981' }]}>Add Group</Text>
+              {/* Global Search Bar */}
+              <View style={[s.searchBox, { marginBottom: 2 }]}>
+                <Feather name="search" size={15} color={MUTED} />
+                <TextInput
+                  style={[s.searchInput, { color: TEXT, flex: 1 }]}
+                  placeholder="Search all houses — reg no, owner, mobile…"
+                  placeholderTextColor={MUTED}
+                  value={globalSearch}
+                  onChangeText={setGlobalSearch}
+                />
+                {globalSearch.length > 0 && (
+                  <TouchableOpacity onPress={() => setGlobalSearch('')}>
+                    <Feather name="x" size={14} color={MUTED} />
                   </TouchableOpacity>
-                  <TouchableOpacity style={[s.actionChip, { borderColor: '#6366F145', backgroundColor: '#6366F112' }]} onPress={() => setShowAddWardModal(true)} activeOpacity={0.8}>
-                    <Feather name="map-pin" size={12} color="#6366F1" />
-                    <Text style={[s.actionChipText, { color: '#6366F1' }]}>Add Ward</Text>
-                  </TouchableOpacity>
-                </View>
+                )}
               </View>
 
-              {wards.map((ward, idx) => {
+              {/* Global search results */}
+              {globalSearch.trim().length >= 2 && (
+                <View style={{ gap: 6 }}>
+                  <Text style={[s.sectionLabel, { color: MUTED, fontSize: 11 }]}>
+                    {globalResults.length} result{globalResults.length !== 1 ? 's' : ''} found
+                  </Text>
+                  {globalResults.length === 0 ? (
+                    <View style={[s.emptyCard, { paddingVertical: 20 }]}>
+                      <Feather name="search" size={22} color={MUTED} />
+                      <Text style={[s.emptyTitle, { color: TEXT }]}>No Houses Found</Text>
+                      <Text style={[s.emptySub, { color: MUTED }]}>Try a different search term</Text>
+                    </View>
+                  ) : (
+                    globalResults.map(h => {
+                      const ward = wards.find(w => w.id === h.wardId);
+                      return (
+                        <View key={h.id} style={[s.globalResultCard]}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                            <View style={s.globalResultDot} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={[s.regText, { color: '#818CF8' }]}>{h.registrationNumber}</Text>
+                              <Text style={[s.ownerText, { color: TEXT }]} numberOfLines={1}>{h.ownerName}</Text>
+                              <Text style={[s.wardArea, { color: MUTED, fontSize: 10 }]} numberOfLines={1}>
+                                Ward {h.wardNumber}{ward ? ` · ${ward.name}` : ''}{h.groupName ? ` · ${h.groupName}` : ''}
+                              </Text>
+                            </View>
+                          </View>
+                          <TouchableOpacity
+                            style={[s.iconBtn, { backgroundColor: '#6366F118', borderColor: '#6366F130' }]}
+                            onPress={() => {
+                              if (ward) { goToGroups(ward); }
+                            }}
+                          >
+                            <Feather name="arrow-right" size={12} color="#6366F1" />
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })
+                  )}
+                </View>
+              )}
+
+              {/* Action row — shown when not searching */}
+              {globalSearch.trim().length < 2 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <Text style={s.sectionLabel}>All Wards</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity style={[s.actionChip, { borderColor: '#10B98145', backgroundColor: '#10B98112' }]} onPress={() => setShowAddGroupModal(true)} activeOpacity={0.8}>
+                      <Feather name="layers" size={12} color="#10B981" />
+                      <Text style={[s.actionChipText, { color: '#10B981' }]}>Add Group</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[s.actionChip, { borderColor: '#6366F145', backgroundColor: '#6366F112' }]} onPress={() => setShowAddWardModal(true)} activeOpacity={0.8}>
+                      <Feather name="map-pin" size={12} color="#6366F1" />
+                      <Text style={[s.actionChipText, { color: '#6366F1' }]}>Add Ward</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {globalSearch.trim().length < 2 && wards.map((ward, idx) => {
                 const grad = WARD_GRADS[idx % WARD_GRADS.length];
                 const wHouses = houses.filter(h => h.wardId === ward.id).length;
                 const wWorkers = ward.assignedWorkers ?? [];
@@ -609,7 +684,7 @@ export default function SuperAdminHouseDB() {
                 );
               })}
 
-              {wards.length === 0 && (
+              {globalSearch.trim().length < 2 && wards.length === 0 && (
                 <View style={s.emptyCard}>
                   <LinearGradient colors={['#4F46E530','#7C3AED20']} style={s.emptyIcon}>
                     <Feather name="map" size={28} color="#7C3AED" />
@@ -1600,6 +1675,8 @@ const s = StyleSheet.create({
   grpColorDot: { width: 12, height: 12, borderRadius: 6 },
 
   // Empty states
+  globalResultCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: GLASS, borderRadius: 12, borderWidth: 1, borderColor: GLASS_BD, paddingHorizontal: 12, paddingVertical: 10 },
+  globalResultDot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: '#6366F1' },
   emptyCard: { borderRadius: 18, borderWidth: 1, borderColor: GLASS_BD, padding: 36, alignItems: 'center', gap: 12, backgroundColor: GLASS },
   emptyCenter: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16, padding: 40 },
   emptyIcon: { width: 70, height: 70, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },

@@ -258,30 +258,32 @@ export default function AdminManagement() {
       </LinearGradient>
 
       {/* ── TAB BAR ── */}
-      <View style={s.tabBar}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={s.tabBar}
+        contentContainerStyle={s.tabBarContent}
+      >
         {TAB_CFG.map(t => {
           const isActive = tab === t.key;
           const hasBadge = t.key === 'resets' && pendingResets > 0;
           return (
             <TouchableOpacity
               key={t.key}
-              style={[s.tabPill, isActive && { backgroundColor: t.color + '18', borderColor: t.color + '40' }]}
+              style={[s.tabPill, isActive && { borderBottomColor: t.color }]}
               onPress={() => setTab(t.key as Tab)}
               activeOpacity={0.7}
             >
-              <View style={{ position: 'relative' }}>
-                <Feather name={t.icon as any} size={15} color={isActive ? t.color : MUTED} />
-                {hasBadge && (
-                  <View style={s.tabBadge}><Text style={s.tabBadgeTxt}>{pendingResets}</Text></View>
-                )}
-              </View>
-              <Text style={[s.tabLabel, { color: isActive ? t.color : MUTED, fontFamily: isActive ? 'Inter_700Bold' : 'Inter_500Medium' }]}>
+              <Text style={[s.tabLabel, { color: isActive ? t.color : MUTED, fontFamily: isActive ? 'Inter_600SemiBold' : 'Inter_400Regular' }]}>
                 {t.label}
               </Text>
+              {hasBadge && (
+                <View style={s.tabBadge}><Text style={s.tabBadgeTxt}>{pendingResets}</Text></View>
+              )}
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
 
       {/* ══════════════════════════════════════════════════════════════
            GEN KEY TAB  ──  full redesign
@@ -729,11 +731,12 @@ const s = StyleSheet.create({
   headerSub:   { color: MUTED, fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 4, zIndex: 1 },
 
   // tab bar
-  tabBar:      { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: GLASS_BD },
-  tabPill:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: 14, borderWidth: 1, borderColor: 'transparent' },
-  tabBadge:    { position: 'absolute', top: -5, right: -8, width: 16, height: 16, borderRadius: 8, backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center' },
-  tabBadgeTxt: { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
-  tabLabel:    { fontSize: 12 },
+  tabBar:        { backgroundColor: BG, borderBottomWidth: 1, borderBottomColor: GLASS_BD },
+  tabBarContent: { paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center' },
+  tabPill:       { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: 'transparent', flexDirection: 'row', alignItems: 'center', gap: 5 },
+  tabBadge:      { width: 15, height: 15, borderRadius: 8, backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center' },
+  tabBadgeTxt:   { color: '#fff', fontSize: 8, fontFamily: 'Inter_700Bold' },
+  tabLabel:      { fontSize: 12 },
 
   // ── GEN KEY TAB ──────────────────────────────────────────────
   // stats row

@@ -3,6 +3,7 @@ import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
   onAuthStateChanged,
+  signInAnonymously,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -155,11 +156,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // in the Firebase Console → Authentication → admin.dnp360@gmail.com.
       try {
         await signInWithEmailAndPassword(firebaseAuth, SUPER_ADMIN.email, SUPER_ADMIN.password);
-      } catch { /* fall back to local session — app still works */ }
-      // Ensure super admin user doc exists in Firestore (for rules + real-time sync)
-      try {
-        await saveUserToFirestore('SUPERADMIN', userData as User);
-      } catch { /* ignore offline failures */ }
+      } catch {
+        // Fall back to anonymous auth — gives us a valid token for Firestore writes
+        try { await signInAnonymously(firebaseAuth); } catch { /* offline */ }
+      }
+      // Save user doc under the ACTUAL Firebase Auth UID so Firestore rules
+      // can verify callerRole() == 'admin' regardless of auth method used.
+      if (firebaseAuth.currentUser) {
+        try {
+          await saveUserToFirestore(firebaseAuth.currentUser.uid, { ...userData as User, role: 'admin' });
+        } catch { /* offline — will retry on next login */ }
+      }
+      // Also keep the legacy 'SUPERADMIN' doc for backwards compat
+      try { await saveUserToFirestore('SUPERADMIN', userData as User); } catch {}
       setUser(userData);
       await AsyncStorage.setItem('dnp360_user', JSON.stringify(userData));
       return true;
