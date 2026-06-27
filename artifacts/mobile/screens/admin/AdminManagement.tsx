@@ -11,6 +11,7 @@ import { useAlert } from '@/contexts/AlertContext';
 import { useAppData } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import type { PasswordResetRequest, SecretKey } from '@/types';
+import SuperAdminImport from './SuperAdminImport';
 
 // ── Design tokens ────────────────────────────────────────────────────
 const BG       = '#060B18';
@@ -39,12 +40,13 @@ const PRIORITY = {
   low:    { color: '#34D399', bg: 'rgba(52,211,153,0.10)',  border: 'rgba(52,211,153,0.28)'  },
 };
 
-type Tab = 'genkey' | 'notices' | 'resets';
+type Tab = 'genkey' | 'notices' | 'resets' | 'import';
 
 const TAB_CFG = [
-  { key: 'notices', label: 'Notices',  icon: 'volume-2', color: '#22D3EE', grad: ['#0EA5E9','#0284C7'] as const },
-  { key: 'resets',  label: 'Resets',   icon: 'unlock',   color: '#FB7185', grad: ['#F97316','#EF4444'] as const },
-  { key: 'genkey',  label: 'Gen Key',  icon: 'key',      color: '#C084FC', grad: ['#7C3AED','#4F46E5'] as const },
+  { key: 'notices', label: 'Notices',  icon: 'volume-2',    color: '#22D3EE', grad: ['#0EA5E9','#0284C7'] as const },
+  { key: 'resets',  label: 'Resets',   icon: 'unlock',      color: '#FB7185', grad: ['#F97316','#EF4444'] as const },
+  { key: 'genkey',  label: 'Gen Key',  icon: 'key',         color: '#C084FC', grad: ['#7C3AED','#4F46E5'] as const },
+  { key: 'import',  label: 'Import',   icon: 'upload-cloud',color: '#34D399', grad: ['#10B981','#059669'] as const },
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────
@@ -250,6 +252,7 @@ export default function AdminManagement() {
         <Text style={s.headerSub}>
           {tab === 'notices' ? `${notices.length} notices · ${notices.filter(n => n.isActive).length} active`
             : tab === 'resets' ? `${pendingResets} pending reset${pendingResets !== 1 ? 's' : ''}`
+            : tab === 'import' ? 'Bulk import via Excel or CSV'
             : `${allUnused.length} unused key${allUnused.length !== 1 ? 's' : ''} · ${secretKeys.length} total`}
         </Text>
       </LinearGradient>
@@ -531,6 +534,15 @@ export default function AdminManagement() {
             })
           )}
         </ScrollView>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+           IMPORT TAB
+         ══════════════════════════════════════════════════════════════ */}
+      {tab === 'import' && (
+        <View style={{ flex: 1 }}>
+          <SuperAdminImport embedded />
+        </View>
       )}
 
       {/* ══════════════════════════════════════════════════════════════

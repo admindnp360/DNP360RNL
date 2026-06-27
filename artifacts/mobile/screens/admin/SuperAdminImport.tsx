@@ -62,7 +62,7 @@ const STATUS_CFG = {
   dup_excel: { label: 'Dup in File',color: '#F97316', bg: '#F9731618', icon: 'alert-triangle' },
 } as const;
 
-export default function SuperAdminImport() {
+export default function SuperAdminImport({ embedded = false }: { embedded?: boolean }) {
   const { houses, wards, bulkImportHouses, addImportHistory, importHistory, deleteImportHistory } = useAppData();
   const { user } = useAuth();
   const colors = useColors();
@@ -286,40 +286,40 @@ export default function SuperAdminImport() {
   }
 
   /* ─────────────────────────────────────────────────────── render */
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
+  const content = (
+    <View style={{ flex: 1, backgroundColor: embedded ? '#060B18' : colors.background }}>
 
-      {/* ── HERO HEADER ── */}
-      <LinearGradient colors={['#0F0A2A', '#0C1A4A', '#0A2A3A']} style={s.hero}>
-        <View style={s.heroContent}>
-          <View style={{ flex: 1 }}>
-            <View style={s.heroBadge}>
-              <Feather name="star" size={9} color="#FFD700" />
-              <Text style={s.heroBadgeText}>SUPER ADMIN</Text>
+      {/* ── HERO HEADER (only when not embedded) ── */}
+      {!embedded && (
+        <LinearGradient colors={['#0F0A2A', '#0C1A4A', '#0A2A3A']} style={s.hero}>
+          <View style={s.heroContent}>
+            <View style={{ flex: 1 }}>
+              <View style={s.heroBadge}>
+                <Feather name="star" size={9} color="#FFD700" />
+                <Text style={s.heroBadgeText}>SUPER ADMIN</Text>
+              </View>
+              <Text style={s.heroTitle}>Bulk Import</Text>
+              <Text style={s.heroSub}>Excel & CSV import for House Database</Text>
             </View>
-            <Text style={s.heroTitle}>Bulk Import</Text>
-            <Text style={s.heroSub}>Excel & CSV import for House Database</Text>
-          </View>
-          <LinearGradient colors={['#6366F130', '#0EA5E930']} style={s.heroIconRing}>
-            <Feather name="upload-cloud" size={24} color="#A5B4FC" />
-          </LinearGradient>
-        </View>
-
-        {/* Stat pills */}
-        <View style={s.heroStats}>
-          {[
-            { icon: 'home', label: 'Total Houses', val: totalHouses, grad: ['#6366F1', '#4F46E5'] as [string,string] },
-            { icon: 'clock', label: 'Imports Done', val: importsDone, grad: ['#0EA5E9', '#0284C7'] as [string,string] },
-            { icon: 'map-pin', label: 'Wards', val: totalWards, grad: ['#10B981', '#059669'] as [string,string] },
-          ].map(st => (
-            <LinearGradient key={st.label} colors={st.grad} style={s.heroStatCard}>
-              <Feather name={st.icon as any} size={13} color="rgba(255,255,255,0.75)" />
-              <Text style={s.heroStatVal}>{st.val}</Text>
-              <Text style={s.heroStatLabel}>{st.label}</Text>
+            <LinearGradient colors={['#6366F130', '#0EA5E930']} style={s.heroIconRing}>
+              <Feather name="upload-cloud" size={24} color="#A5B4FC" />
             </LinearGradient>
-          ))}
-        </View>
-      </LinearGradient>
+          </View>
+          <View style={s.heroStats}>
+            {[
+              { icon: 'home', label: 'Total Houses', val: totalHouses, grad: ['#6366F1', '#4F46E5'] as [string,string] },
+              { icon: 'clock', label: 'Imports Done', val: importsDone, grad: ['#0EA5E9', '#0284C7'] as [string,string] },
+              { icon: 'map-pin', label: 'Wards', val: totalWards, grad: ['#10B981', '#059669'] as [string,string] },
+            ].map(st => (
+              <LinearGradient key={st.label} colors={st.grad} style={s.heroStatCard}>
+                <Feather name={st.icon as any} size={13} color="rgba(255,255,255,0.75)" />
+                <Text style={s.heroStatVal}>{st.val}</Text>
+                <Text style={s.heroStatLabel}>{st.label}</Text>
+              </LinearGradient>
+            ))}
+          </View>
+        </LinearGradient>
+      )}
 
       {/* ── SUB TAB BAR ── */}
       <View style={[s.tabBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
@@ -950,6 +950,13 @@ export default function SuperAdminImport() {
           onChange={handleWebFileChange}
         />
       )}
+    </View>
+  );
+
+  if (embedded) return content;
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
+      {content}
     </SafeAreaView>
   );
 }
