@@ -29,6 +29,20 @@ interface HouseResult {
   wardId: string;
 }
 
+// ── Late detection: scans after LATE_CUTOFF_HOUR (IST) are flagged Late ──
+const LATE_CUTOFF_HOUR = 11; // 11 AM IST
+
+function getISTHour(): number {
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istNow = new Date(now.getTime() + istOffset);
+  return istNow.getHours();
+}
+
+function isLateVisit(): boolean {
+  return getISTHour() >= LATE_CUTOFF_HOUR;
+}
+
 export function CameraScanner({ visible, onClose }: Props) {
   const { user } = useAuth();
   const { houses, getHouseByRegistration, addHouseVisit } = useAppData();
@@ -71,6 +85,7 @@ export function CameraScanner({ visible, onClose }: Props) {
     if (!house) return;
     setPhase('saving');
     const found = getHouseByRegistration(house.reg) ?? houses.find(h => h.id === house.id);
+    const late = garbageCollected && isLateVisit();
     if (found) {
       await addHouseVisit({
         houseId: found.id,
@@ -81,6 +96,7 @@ export function CameraScanner({ visible, onClose }: Props) {
         workerName: user?.name,
         wardId: found.wardId,
         collectedGarbage: garbageCollected,
+        isLate: late,
         visitDate: new Date().toISOString().split('T')[0],
         visitTime: nowTime(),
         status: 'visited',
@@ -200,6 +216,16 @@ export function CameraScanner({ visible, onClose }: Props) {
             <View style={styles.confirmHandle} />
             <Feather name="check-circle" size={18} color="#34D399" style={{ alignSelf: 'center' }} />
             <Text style={styles.confirmTitle}>House Scanned</Text>
+
+            {/* Late scan warning */}
+            {isLateVisit() && (
+              <View style={styles.lateBadge}>
+                <Feather name="clock" size={13} color="#FBBF24" />
+                <Text style={styles.lateBadgeTxt}>
+                  Late Scan — after {LATE_CUTOFF_HOUR}:00 AM (will be marked L)
+                </Text>
+              </View>
+            )}
 
             <LinearGradient colors={['rgba(52,211,153,0.15)','rgba(16,185,129,0.04)']}
               style={styles.houseCard}>
@@ -351,6 +377,12 @@ const styles = StyleSheet.create({
   },
   confirmHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', marginBottom: 8 },
   confirmTitle: { color: '#fff', fontSize: 22, fontFamily: 'Inter_700Bold', textAlign: 'center' },
+  lateBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'center',
+    backgroundColor: 'rgba(251,191,36,0.12)', borderRadius: 10, borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.35)', paddingHorizontal: 12, paddingVertical: 7,
+  },
+  lateBadgeTxt: { color: '#FBBF24', fontSize: 12, fontFamily: 'Inter_600SemiBold' },
 
   houseCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,

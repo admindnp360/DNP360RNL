@@ -3,6 +3,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Sharing from 'expo-sharing';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import * as XLSX from 'xlsx';
 import {
   ActivityIndicator, Pressable, ScrollView, StyleSheet,
   Text, TouchableOpacity, View,
@@ -283,43 +284,64 @@ export default function AdminReports() {
     } finally { setGenerating(false); }
   }
 
-  // ── Export to Excel/CSV ────────────────────────────────────────────
+  // ── Export to Excel (.xlsx) ────────────────────────────────────────
   async function handleExport() {
     if (!report) return;
     const canShare = await Sharing.isAvailableAsync();
     if (!canShare) { showAlert('Not Supported', 'Sharing is not available on this device.', undefined, 'error'); return; }
     setExporting(true);
     try {
-      const lines: string[] = [];
+      const wb = XLSX.utils.book_new();
+      const aoaData: (string | number)[][] = [];
 
       if (report.type === 'monthly' || report.type === 'quarterly') {
-        const dayHdrs = report.type === 'monthly'
-          ? report.dayHeaders
+        const dayHdrLabels = report.type === 'monthly'
+          ? report.dayHeaders.map(String)
           : report.dayHeaders.map(d => {
               const m = Math.floor(d / 100) + 1;
               const day = d % 100;
               return `${MONTH_NAMES[m - 1].slice(0, 3)}-${padDate(day)}`;
             });
-        const header = ['S.No', 'House Reg No', 'Ward No', ...dayHdrs.map(String), 'P', 'N', 'L', '%'].join(',');
-        lines.push(header);
+        aoaData.push(['S.No', 'House Reg No', 'Ward No', ...dayHdrLabels, 'P', 'N', 'L', '%']);
         for (const row of report.rows) {
-          const days = report.dayHeaders.map(d => row.dailyStatus[d] ?? 'N');
-          lines.push([row.sNo, `"${row.houseRegNo}"`, row.wardNo, ...days, row.totalPresent, row.totalAbsent, row.totalLate, row.percentage].join(','));
+          const dayCells = report.dayHeaders.map(d => row.dailyStatus[d] ?? 'N');
+          aoaData.push([row.sNo, row.houseRegNo, row.wardNo, ...dayCells, row.totalPresent, row.totalAbsent, row.totalLate, row.percentage]);
         }
       } else {
-        // Yearly: show monthly summaries per house
-        const header = ['S.No', 'House Reg No', 'Ward No', 'Total Present', 'Total Absent', 'Total Late', 'Percentage'].join(',');
-        lines.push(header);
+        aoaData.push(['S.No', 'House Reg No', 'Ward No', 'Total Present', 'Total Absent', 'Total Late', 'Percentage']);
         for (const row of report.rows) {
-          lines.push([row.sNo, `"${row.houseRegNo}"`, row.wardNo, row.totalPresent, row.totalAbsent, row.totalLate, row.percentage].join(','));
+          aoaData.push([row.sNo, row.houseRegNo, row.wardNo, row.totalPresent, row.totalAbsent, row.totalLate, row.percentage]);
         }
       }
 
-      const csv = lines.join('\n');
-      const filename = `DNP360_${report.id}_${new Date().toISOString().slice(0, 10)}.csv`;
+      // Summary sheet
+      const totP = report.rows.reduce((a, r) => a + r.totalPresent, 0);
+      const totN = report.rows.reduce((a, r) => a + r.totalAbsent, 0);
+      const totL = report.rows.reduce((a, r) => a + r.totalLate, 0);
+      const summaryAoa: (string | number)[][] = [
+        ['Report', report.label],
+        ['Generated At', new Date(report.generatedAt).toLocaleString('en-IN')],
+        ['Total Houses', report.rows.length],
+        ['Total Collected', totP],
+        ['Total Missed', totN],
+        ['Total Late', totL],
+        ['Avg %', report.rows.length > 0 ? (((totP / (totP + totN)) || 0) * 100).toFixed(2) + '%' : '0%'],
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(aoaData);
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryAoa);
+      XLSX.utils.book_append_sheet(wb, ws, 'Collection Data');
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+      const xlsxBase64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+      const filename = `DNP360_${report.id}_${new Date().toISOString().slice(0, 10)}.xlsx`;
       const path = FileSystem.cacheDirectory + filename;
-      await FileSystem.writeAsStringAsync(path, csv, { encoding: FileSystem.EncodingType.UTF8 });
-      await Sharing.shareAsync(path, { mimeType: 'text/csv', dialogTitle: `Export: ${report.label}`, UTI: 'public.comma-separated-values-text' });
+      await FileSystem.writeAsStringAsync(path, xlsxBase64, { encoding: FileSystem.EncodingType.Base64 });
+      await Sharing.shareAsync(path, {
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        dialogTitle: `Export: ${report.label}`,
+        UTI: 'com.microsoft.excel.xlsx',
+      });
     } catch (e: any) { showAlert('Export Failed', e?.message ?? 'Unknown error', undefined, 'error'); }
     finally { setExporting(false); }
   }
@@ -467,27 +489,23 @@ export default function AdminReports() {
                 {report.rows.length} houses · Generated {new Date(report.generatedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
               </Text>
             </View>
-            {/* Export / Share */}
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity
-                style={s.exportBtn}
-                onPress={handleExport}
-                disabled={exporting}
-                activeOpacity={0.8}
-              >
-                <LinearGradient colors={['#10B981','#059669']} style={s.exportBtnGrad}>
-                  {exporting
-                    ? <ActivityIndicator size={13} color="#fff" />
-                    : <Feather name="download" size={14} color="#fff" />
-                  }
-                </LinearGradient>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.exportBtn} onPress={handleExport} disabled={exporting} activeOpacity={0.8}>
-                <LinearGradient colors={['#6366F1','#4F46E5']} style={s.exportBtnGrad}>
-                  <Feather name="share-2" size={14} color="#fff" />
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
+            {/* Export Excel + Share */}
+            <TouchableOpacity
+              onPress={handleExport}
+              disabled={exporting}
+              activeOpacity={0.8}
+            >
+              <LinearGradient colors={['#10B981','#059669']} style={s.exportBtnWide}>
+                {exporting
+                  ? <ActivityIndicator size={13} color="#fff" />
+                  : <>
+                      <Feather name="download" size={13} color="#fff" />
+                      <Text style={s.exportBtnWideTxt}>Excel</Text>
+                      <Feather name="share-2" size={13} color="rgba(255,255,255,0.7)" />
+                    </>
+                }
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
 
           {/* Legend */}
@@ -640,8 +658,8 @@ const s = StyleSheet.create({
   reportHeader: { borderRadius: 16, borderWidth: 1, borderColor: GLASS_BD, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, overflow: 'hidden', marginBottom: 12 },
   reportTitle: { color: TEXT, fontSize: 14, fontFamily: 'Inter_700Bold' },
   reportSub: { color: MUTED, fontSize: 11, fontFamily: 'Inter_400Regular', marginTop: 2 },
-  exportBtn: { },
-  exportBtnGrad: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  exportBtnWide: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  exportBtnWideTxt: { color: '#fff', fontSize: 12, fontFamily: 'Inter_700Bold' },
 
   legend: { flexDirection: 'row', gap: 14, marginBottom: 12 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },

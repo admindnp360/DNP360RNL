@@ -43,10 +43,10 @@ const ROLE_TABS: Record<string, Record<TabName, { icon: string; label: string }>
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  citizen:    '#1264E8',
-  safaikarmi: '#007F42',
-  official:   '#C45C00',
-  admin:      '#1A3FA8',
+  citizen:    '#6AAEFF',
+  safaikarmi: '#34D399',
+  official:   '#FFAA5C',
+  admin:      '#8CB4FF',
 };
 
 function ScanCenterIcon({ focused }: { focused: boolean }) {
