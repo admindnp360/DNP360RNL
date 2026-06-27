@@ -87,8 +87,41 @@ export interface HouseVisit {
   visitDate: string;
   visitTime: string;
   collectedGarbage: boolean;
+  isLate?: boolean;
   notes?: string;
   status: 'visited' | 'not_visited';
+}
+
+export type CollectionStatus = 'P' | 'N' | 'L';
+
+export interface HouseCollectionRow {
+  sNo: number;
+  houseId: string;
+  houseRegNo: string;
+  wardNo: string;
+  dailyStatus: Record<number, CollectionStatus>;
+  totalPresent: number;
+  totalAbsent: number;
+  totalLate: number;
+  totalDays: number;
+  percentage: string;
+}
+
+export type ReportType = 'monthly' | 'quarterly' | 'yearly';
+
+export interface GeneratedReport {
+  id: string;
+  type: ReportType;
+  label: string;
+  year: number;
+  month?: number;
+  quarter?: number;
+  wardId: string | null;
+  wardNumber: string | null;
+  generatedAt: string;
+  rows: HouseCollectionRow[];
+  daysInPeriod: number;
+  dayHeaders: number[];
 }
 
 export interface Ward {

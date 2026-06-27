@@ -584,6 +584,39 @@ export default function SuperAdminHouseDB() {
                 </View>
               )}
 
+              {/* Compact sticky info bar — shown when not searching */}
+              {globalSearch.trim().length < 2 && (
+                <View style={s.infoBar}>
+                  {/* Stats pills */}
+                  <View style={s.infoBarStats}>
+                    <View style={s.infoBarPill}>
+                      <Feather name="home" size={10} color="#818CF8" />
+                      <Text style={s.infoBarNum}>{totalHouses}</Text>
+                      <Text style={s.infoBarLbl}>Houses</Text>
+                    </View>
+                    <View style={[s.infoBarDivider]} />
+                    <View style={s.infoBarPill}>
+                      <Feather name="check-circle" size={10} color="#34D399" />
+                      <Text style={[s.infoBarNum, { color: '#34D399' }]}>{activeHouses}</Text>
+                      <Text style={s.infoBarLbl}>Active</Text>
+                    </View>
+                    <View style={[s.infoBarDivider]} />
+                    <View style={s.infoBarPill}>
+                      <Feather name="map-pin" size={10} color="#22D3EE" />
+                      <Text style={[s.infoBarNum, { color: '#22D3EE' }]}>{wards.length}</Text>
+                      <Text style={s.infoBarLbl}>Wards</Text>
+                    </View>
+                  </View>
+                  {/* Sync status */}
+                  <Animated.View style={[s.infoBarSync, { opacity: syncPulse }]}>
+                    <View style={[s.infoBarSyncDot, { backgroundColor: syncColor }]} />
+                    <Text style={[s.infoBarSyncTxt, { color: syncColor }]}>
+                      {syncStatus === 'synced' ? 'Synced' : syncStatus === 'pending' ? 'Syncing…' : 'Error'}
+                    </Text>
+                  </Animated.View>
+                </View>
+              )}
+
               {/* Action row — shown when not searching */}
               {globalSearch.trim().length < 2 && (
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -1524,6 +1557,17 @@ const s = StyleSheet.create({
   statPill: { flex: 1, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 10, alignItems: 'center', gap: 4 },
   statNum: { color: '#fff', fontSize: 18, fontFamily: 'Inter_700Bold' },
   statLbl: { color: 'rgba(255,255,255,0.7)', fontSize: 10, fontFamily: 'Inter_500Medium' },
+
+  // Compact info bar
+  infoBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(99,102,241,0.08)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(99,102,241,0.18)', paddingHorizontal: 12, paddingVertical: 7, marginBottom: 8 },
+  infoBarStats: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  infoBarPill: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  infoBarNum: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#818CF8' },
+  infoBarLbl: { fontSize: 10, fontFamily: 'Inter_500Medium', color: MUTED },
+  infoBarDivider: { width: 1, height: 14, backgroundColor: 'rgba(255,255,255,0.10)' },
+  infoBarSync: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  infoBarSyncDot: { width: 6, height: 6, borderRadius: 3 },
+  infoBarSyncTxt: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
 
   // Segment bar
   segBar: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.04)', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.08)', paddingHorizontal: 8 },

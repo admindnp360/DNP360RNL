@@ -11,6 +11,7 @@ import { useAlert } from '@/contexts/AlertContext';
 import { useAppData } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import type { PasswordResetRequest, SecretKey } from '@/types';
+import AdminReports from './AdminReports';
 import SuperAdminImport from './SuperAdminImport';
 
 // ── Design tokens ────────────────────────────────────────────────────
@@ -40,13 +41,14 @@ const PRIORITY = {
   low:    { color: '#34D399', bg: 'rgba(52,211,153,0.10)',  border: 'rgba(52,211,153,0.28)'  },
 };
 
-type Tab = 'genkey' | 'notices' | 'resets' | 'import';
+type Tab = 'genkey' | 'notices' | 'resets' | 'import' | 'reports';
 
 const TAB_CFG = [
   { key: 'notices', label: 'Notices',  icon: 'volume-2',    color: '#22D3EE', grad: ['#0EA5E9','#0284C7'] as const },
   { key: 'resets',  label: 'Resets',   icon: 'unlock',      color: '#FB7185', grad: ['#F97316','#EF4444'] as const },
   { key: 'genkey',  label: 'Gen Key',  icon: 'key',         color: '#C084FC', grad: ['#7C3AED','#4F46E5'] as const },
   { key: 'import',  label: 'Import',   icon: 'upload-cloud',color: '#34D399', grad: ['#10B981','#059669'] as const },
+  { key: 'reports', label: 'Reports',  icon: 'bar-chart-2', color: '#FBBF24', grad: ['#F59E0B','#D97706'] as const },
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────
@@ -530,6 +532,15 @@ export default function AdminManagement() {
       {tab === 'import' && (
         <View style={{ flex: 1 }}>
           <SuperAdminImport embedded />
+        </View>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+           REPORTS TAB
+         ══════════════════════════════════════════════════════════════ */}
+      {tab === 'reports' && (
+        <View style={{ flex: 1 }}>
+          <AdminReports />
         </View>
       )}
 

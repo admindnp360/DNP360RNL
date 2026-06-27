@@ -2,3 +2,4 @@
 - [DNP360 House DB module](dnp360-housedb.md) — Super Admin House DB tab: 3 inner-tab pattern, positions, and storage version rules.
 - [DNP360 Firestore migration](dnp360-firestore.md) — Migrated from RTDB to Firestore; collection layout, offline persistence setup, and version key.
 - [DNP360 SuperAdmin Firestore auth fix](dnp360-superadmin-auth.md) — SuperAdmin writes failed because user doc wasn't saved under the actual Firebase Auth UID; fixed in AuthContext login.
+- [DNP360 Reports & Collection tracking](dnp360-reports.md) — AdminReports.tsx added under Manage tab; collection status P/N/L derived from houseVisits; isLate field added to HouseVisit type.
