@@ -429,7 +429,7 @@ export default function AdminReports() {
         {/* Month selector (monthly only) */}
         {tab === 'monthly' && (
           <>
-            <Text style={[s.cfgLabel, { marginTop: 14 }]}>Month</Text>
+            <Text style={[s.cfgLabel, { marginTop: 9 }]}>Month</Text>
             <View style={s.pillGrid}>
               {MONTH_NAMES.map((m, i) => {
                 const active = selMonth === i + 1;
@@ -450,7 +450,7 @@ export default function AdminReports() {
         {/* Quarter selector (quarterly only) */}
         {tab === 'quarterly' && (
           <>
-            <Text style={[s.cfgLabel, { marginTop: 14 }]}>Quarter</Text>
+            <Text style={[s.cfgLabel, { marginTop: 9 }]}>Quarter</Text>
             <View style={s.pillRow}>
               {[1, 2, 3, 4].map(q => (
                 <TouchableOpacity
@@ -466,8 +466,8 @@ export default function AdminReports() {
         )}
 
         {/* Ward selector */}
-        <Text style={[s.cfgLabel, { marginTop: 14 }]}>Ward</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 4 }}>
+        <Text style={[s.cfgLabel, { marginTop: 9 }]}>Ward</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 5, paddingBottom: 2 }}>
           <TouchableOpacity
             style={[s.wardPill, selWardId === null && { backgroundColor: '#6366F120', borderColor: '#6366F155' }]}
             onPress={() => { setSelWardId(null); setReport(null); }}
@@ -490,7 +490,7 @@ export default function AdminReports() {
           onPress={() => handleGenerate(false)}
           disabled={generating}
           activeOpacity={0.85}
-          style={{ marginTop: 16 }}
+          style={{ marginTop: 10 }}
         >
           <LinearGradient
             colors={tab === 'monthly' ? ['#0EA5E9','#0284C7'] : tab === 'quarterly' ? ['#7C3AED','#4F46E5'] : ['#10B981','#059669']}
@@ -725,18 +725,18 @@ const s = StyleSheet.create({
   tabPill: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: 'transparent', backgroundColor: GLASS },
   tabLabel: { fontSize: 12 },
 
-  configCard: { marginHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: GLASS_BD, padding: 16, overflow: 'hidden' },
-  cfgLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', color: MUTED, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8 },
-  pillRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  optPill: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: GLASS_BD, backgroundColor: GLASS },
-  optPillTxt: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: MUTED },
-  pillGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  monthPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: GLASS_BD, backgroundColor: GLASS },
-  monthPillTxt: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: MUTED },
-  wardPill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: GLASS_BD, backgroundColor: GLASS },
-  wardPillTxt: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: MUTED },
-  genBtn: { borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  genBtnTxt: { color: '#fff', fontSize: 14, fontFamily: 'Inter_700Bold' },
+  configCard: { marginHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: GLASS_BD, padding: 10, overflow: 'hidden' },
+  cfgLabel: { fontSize: 10, fontFamily: 'Inter_700Bold', color: MUTED, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 5 },
+  pillRow: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
+  optPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: GLASS_BD, backgroundColor: GLASS },
+  optPillTxt: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: MUTED },
+  pillGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  monthPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, borderWidth: 1, borderColor: GLASS_BD, backgroundColor: GLASS },
+  monthPillTxt: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: MUTED },
+  wardPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: GLASS_BD, backgroundColor: GLASS },
+  wardPillTxt: { fontSize: 10, fontFamily: 'Inter_600SemiBold', color: MUTED },
+  genBtn: { borderRadius: 12, paddingVertical: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  genBtnTxt: { color: '#fff', fontSize: 12, fontFamily: 'Inter_700Bold' },
 
   reportHeader: { borderRadius: 16, borderWidth: 1, borderColor: GLASS_BD, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, overflow: 'hidden', marginBottom: 12 },
   reportTitle: { color: TEXT, fontSize: 14, fontFamily: 'Inter_700Bold' },
